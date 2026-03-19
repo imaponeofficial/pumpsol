@@ -88,7 +88,6 @@ html, body {
 .ham-btn.open span:nth-child(2) { opacity: 0; }
 .ham-btn.open span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
 
-/* ── TABS ─────────────────────────────────────────────────── */
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--border);
@@ -97,7 +96,11 @@ html, body {
   top: var(--header-h);
   z-index: 190;
   height: var(--tab-h);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 .tab {
   flex: 1; height: 100%; font-size: 12px; font-weight: 600;
   color: var(--text2); border: none; background: none; cursor: pointer;
@@ -520,12 +523,14 @@ html, body {
 </div>
 
 <!-- TABS -->
-<div class="tabs">
-  <button class="tab active" onclick="showTab('alerts',this)">📡 Alertas</button>
-  <button class="tab" onclick="showTab('wallets',this)">👛 Carteiras</button>
-  <button class="tab" onclick="showTab('trade',this)">🤖 Trade</button>
-  <button class="tab" onclick="showTab('filters',this)">🔧 Filtros</button>
-  <button class="tab" onclick="showTab('telegram',this)">✈️ Telegram</button>
+<div class="tabs" style="overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none">
+  <button class="tab active" onclick="showTab('alerts',this)" style="min-width:70px;white-space:nowrap">📡 Alertas</button>
+  <button class="tab" onclick="showTab('wallets',this)" style="min-width:80px;white-space:nowrap">👛 Carteiras</button>
+  <button class="tab" onclick="showTab('trade',this)" style="min-width:70px;white-space:nowrap">🤖 Trade</button>
+  <button class="tab" onclick="showTab('portfolio',this)" style="min-width:80px;white-space:nowrap">💼 Portfólio</button>
+  <button class="tab" onclick="showTab('sell',this)" style="min-width:80px;white-space:nowrap">🎯 Venda</button>
+  <button class="tab" onclick="showTab('filters',this)" style="min-width:70px;white-space:nowrap">🔧 Filtros</button>
+  <button class="tab" onclick="showTab('telegram',this)" style="min-width:70px;white-space:nowrap">✈️ Telegram</button>
 </div>
 
 <!-- OVERLAY -->
@@ -649,6 +654,32 @@ html, body {
     <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveTradeConfig()">💾 Salvar configurações</button>
   </div>
 
+  <!-- Filtros de token para o copy trade -->
+  <div class="section">
+    <div class="section-title">Filtros de Token (Copy Trade)</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      O bot só vai comprar tokens que passarem por estes filtros. Tokens em bonding curve (pump.fun não migrado) são sempre descartados automaticamente.
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>MCap mínimo ($)</label>
+        <input type="number" id="cfgTradeMcapMin" value="0" inputmode="numeric" placeholder="0 = sem limite">
+      </div>
+      <div class="field">
+        <label>MCap máximo ($)</label>
+        <input type="number" id="cfgTradeMcapMax" value="0" inputmode="numeric" placeholder="0 = sem limite">
+      </div>
+    </div>
+    <div class="field">
+      <label>Idade mínima do par (dias)</label>
+      <input type="number" id="cfgTradeAgeMin" value="0" inputmode="numeric" placeholder="0 = sem restrição">
+    </div>
+    <div style="font-size:11px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);border-left:3px solid var(--amber);margin-bottom:8px">
+      ⚠️ Tokens em fase de progresso (bonding curve pump.fun) são <b style="color:var(--amber)">sempre descartados</b> — o bot nunca os compra independente dos filtros.
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveTradeConfig()">💾 Salvar filtros de trade</button>
+  </div>
+
   <!-- Take Profit -->
   <div class="section">
     <div class="section-title">Take Profit Automático</div>
@@ -705,6 +736,89 @@ html, body {
     </div>
   </div>
 
+</div>
+
+<!-- ══════════════════ PORTFÓLIO ══════════════════ -->
+<div class="page" id="tab-portfolio">
+  <div class="section">
+    <div class="section-title">Meu Portfólio</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Tokens que o bot comprou e ainda estão na carteira.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadPortfolio()">🔄 Atualizar portfólio</button>
+    <div id="portfolioList">
+      <div class="empty"><div class="empty-icon">💼</div>Carregando portfólio...</div>
+    </div>
+  </div>
+
+  <!-- Blacklist -->
+  <div class="section">
+    <div class="section-title">Lista Negra de Tokens</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Tokens que já foram comprados pelo bot. Nunca serão comprados novamente.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadBlacklist()">🔄 Atualizar lista</button>
+    <div id="blacklistContainer">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ VENDA MANUAL ══════════════════ -->
+<div class="page" id="tab-sell">
+  <div class="section">
+    <div class="section-title">Venda Automática Manual</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Configure alvos de venda para tokens que você tem na carteira. O bot venderá automaticamente ao atingir cada alvo.
+    </div>
+    <button class="btn btn-green btn-sm" style="width:100%;margin-bottom:10px" onclick="openManualTargetModal()">＋ Adicionar token para venda</button>
+    <div id="manualTargetsList">
+      <div class="empty"><div class="empty-icon">🎯</div>Nenhum alvo configurado.<br>Adicione um token acima para configurar alvos de venda.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NOVO ALVO MANUAL -->
+<div class="modal-overlay" id="manualTargetModal">
+  <div class="modal" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title" id="manualTargetModalTitle">Novo Alvo de Venda</div>
+    <div class="field">
+      <label>Endereço do token (mint)</label>
+      <input type="text" id="mtMint" placeholder="Endereço do token..." autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Símbolo</label>
+      <input type="text" id="mtSym" placeholder="Ex: PEPE, WIF..." maxlength="20">
+    </div>
+    <div class="field">
+      <label>MCap de entrada ($)</label>
+      <input type="number" id="mtEntryMcap" placeholder="MCap quando você comprou" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>Quantidade do token que você tem</label>
+      <input type="number" id="mtAmount" placeholder="Ex: 1000000" inputmode="decimal" step="any">
+    </div>
+    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:10px 0 6px;letter-spacing:.05em">NÍVEL 1</div>
+    <div class="grid2">
+      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp1x" value="3" step="0.5" inputmode="decimal"></div>
+      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp1pct" value="30" inputmode="numeric"></div>
+    </div>
+    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 2</div>
+    <div class="grid2">
+      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp2x" value="5" step="0.5" inputmode="decimal"></div>
+      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp2pct" value="30" inputmode="numeric"></div>
+    </div>
+    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 3</div>
+    <div class="grid2">
+      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp3x" value="10" step="0.5" inputmode="decimal"></div>
+      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp3pct" value="40" inputmode="numeric"></div>
+    </div>
+    <input type="hidden" id="mtEditId" value="">
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeManualTargetModal()">Cancelar</button>
+      <button class="btn btn-green btn-sm" style="flex:1" onclick="saveManualTarget()">Salvar alvo</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════ FILTROS ══════════════════ -->
@@ -1194,6 +1308,8 @@ function showTab(name, btn){
 
   // Carrega aba trade ao abrir
   if(name === 'trade') loadTradeTab();
+  if(name === 'portfolio') { loadPortfolio(); loadBlacklist(); }
+  if(name === 'sell') loadManualTargets();
 }
 
 function toggleSidebar(){
@@ -1731,6 +1847,14 @@ async function loadTradeConfig() {
       document.getElementById('tp3x').value   = tradeConfig.tp3_x;
       document.getElementById('tp3pct').value = tradeConfig.tp3_pct;
 
+      // Novos filtros de trade
+      if(tradeConfig.trade_mcap_min !== null && tradeConfig.trade_mcap_min !== undefined)
+        document.getElementById('cfgTradeMcapMin').value = tradeConfig.trade_mcap_min;
+      if(tradeConfig.trade_mcap_max !== null && tradeConfig.trade_mcap_max !== undefined)
+        document.getElementById('cfgTradeMcapMax').value = tradeConfig.trade_mcap_max;
+      if(tradeConfig.trade_age_min !== null && tradeConfig.trade_age_min !== undefined)
+        document.getElementById('cfgTradeAgeMin').value = tradeConfig.trade_age_min;
+
       updateTradeToggleUI();
       updateTPToggleUI();
     }
@@ -1750,6 +1874,10 @@ async function saveTradeConfig() {
       tp2_pct: parseFloat(document.getElementById('tp2pct').value)||30,
       tp3_x:   parseFloat(document.getElementById('tp3x').value)||10,
       tp3_pct: parseFloat(document.getElementById('tp3pct').value)||40,
+      // Novos filtros de trade
+      trade_mcap_min: parseFloat(document.getElementById('cfgTradeMcapMin').value)||0,
+      trade_mcap_max: parseFloat(document.getElementById('cfgTradeMcapMax').value)||0,
+      trade_age_min:  parseFloat(document.getElementById('cfgTradeAgeMin').value)||0,
       updated_at: new Date().toISOString()
     };
     await supa('/rest/v1/trade_config?id=eq.00000000-0000-0000-0000-000000000001', 'PATCH', data);
@@ -1940,6 +2068,230 @@ async function loadTradeTab() {
   await loadTradeGroups();
   await loadTradePositions();
   await loadTradeHistory();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PORTFÓLIO
+// ═══════════════════════════════════════════════════════════════
+async function loadPortfolio() {
+  const el = document.getElementById('portfolioList');
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Carregando...</div>';
+  try {
+    const rows = await supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc');
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">💼</div>Nenhum token no portfólio.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(p => {
+      const x = p.current_x || 0;
+      const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
+      const tp1cls = p.tp1_done ? 'done' : 'pending';
+      const tp2cls = p.tp2_done ? 'done' : 'pending';
+      const tp3cls = p.tp3_done ? 'done' : 'pending';
+      return `
+        <div class="position-card" style="margin-bottom:10px">
+          <div class="position-header">
+            <span class="position-sym">${p.token_symbol||'?'}</span>
+            <span class="position-x" style="color:${xColor}">${x.toFixed(2)}x</span>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">${p.token_name||''}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.entry_mcap)}</div><div class="stat-lbl">Entrada</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.current_mcap)}</div><div class="stat-lbl">Atual</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${p.entry_sol||'?'} SOL</div><div class="stat-lbl">Investido</div></div>
+          </div>
+          <div class="tp-pills">
+            <span class="tp-pill ${tp1cls}">TP1</span>
+            <span class="tp-pill ${tp2cls}">TP2</span>
+            <span class="tp-pill ${tp3cls}">TP3</span>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <a class="dex-btn" href="${p.token_url||'#'}" target="_blank" style="font-size:11px;padding:5px 10px">DexScreener →</a>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="removePortfolioEntry('${p.token_mint}')">🗑</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>Erro ao carregar: ${e.message}</div>`;
+  }
+}
+
+async function removePortfolioEntry(mint) {
+  if (!confirm('Remover este token do portfólio? (Não executa venda, apenas remove o registro.)')) return;
+  try {
+    await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+    showToast('🗑 Token removido do portfólio');
+    loadPortfolio();
+  } catch(e) { showToast('❌ Erro: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BLACKLIST
+// ═══════════════════════════════════════════════════════════════
+async function loadBlacklist() {
+  const el = document.getElementById('blacklistContainer');
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Carregando...</div>';
+  try {
+    const rows = await supa('/rest/v1/trade_blacklist?select=*&order=added_at.desc');
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhum token na lista negra ainda.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${rows.length} token${rows.length!==1?'s':''} bloqueado${rows.length!==1?'s':''}</div>
+    ` + rows.map(b => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${b.token_symbol||b.token_mint.slice(0,8)+'...'}</div>
+          <div style="font-size:10px;color:var(--text3);font-family:'Space Mono',monospace">${b.token_mint.slice(0,12)}...</div>
+        </div>
+        <div style="font-size:10px;color:var(--text3)">${new Date(b.added_at).toLocaleDateString('pt-BR')}</div>
+        <div class="icon-btn-sm" title="Remover da blacklist" onclick="removeBlacklist('${b.token_mint}')">🗑</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>Erro: ${e.message}</div>`;
+  }
+}
+
+async function removeBlacklist(mint) {
+  if (!confirm('Remover este token da lista negra? O bot poderá comprá-lo novamente.')) return;
+  try {
+    await supa(`/rest/v1/trade_blacklist?token_mint=eq.${mint}`, 'DELETE');
+    showToast('✅ Token removido da lista negra');
+    loadBlacklist();
+  } catch(e) { showToast('❌ Erro: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VENDA MANUAL (alvos)
+// ═══════════════════════════════════════════════════════════════
+async function loadManualTargets() {
+  const el = document.getElementById('manualTargetsList');
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Carregando...</div>';
+  try {
+    const rows = await supa('/rest/v1/manual_trade_targets?select=*&order=created_at.desc');
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">🎯</div>Nenhum alvo configurado.<br>Adicione um token acima.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(t => {
+      const tp1cls = t.tp1_done ? 'done' : 'pending';
+      const tp2cls = t.tp2_done ? 'done' : 'pending';
+      const tp3cls = t.tp3_done ? 'done' : 'pending';
+      const statusColor = t.active ? 'var(--green)' : 'var(--text3)';
+      return `
+        <div class="position-card" style="margin-bottom:10px;${!t.active?'opacity:0.6':''}">
+          <div class="position-header">
+            <span class="position-sym">${t.token_symbol||'?'}</span>
+            <span style="font-size:11px;color:${statusColor}">${t.active ? '● Ativo' : '✓ Finalizado'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Entrada: ${fmtNum(t.entry_mcap)} · Qtd: ${t.token_amount}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp1_x}x / ${t.tp1_pct}%</div><div class="stat-lbl">TP1</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp2_x}x / ${t.tp2_pct}%</div><div class="stat-lbl">TP2</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp3_x}x / ${t.tp3_pct}%</div><div class="stat-lbl">TP3</div></div>
+          </div>
+          <div class="tp-pills">
+            <span class="tp-pill ${tp1cls}">TP1 ${t.tp1_done ? '✓' : ''}</span>
+            <span class="tp-pill ${tp2cls}">TP2 ${t.tp2_done ? '✓' : ''}</span>
+            <span class="tp-pill ${tp3cls}">TP3 ${t.tp3_done ? '✓' : ''}</span>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <a class="dex-btn" href="${t.token_url||'https://dexscreener.com/solana/'+t.token_mint}" target="_blank" style="font-size:11px;padding:5px 10px">DexScreener →</a>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="editManualTarget(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️</button>
+            <button class="btn btn-danger btn-sm" style="font-size:11px;padding:5px 10px" onclick="deleteManualTarget('${t.id}')">🗑</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>Erro: ${e.message}</div>`;
+  }
+}
+
+function openManualTargetModal() {
+  document.getElementById('mtEditId').value = '';
+  document.getElementById('mtMint').value = '';
+  document.getElementById('mtSym').value = '';
+  document.getElementById('mtEntryMcap').value = '';
+  document.getElementById('mtAmount').value = '';
+  document.getElementById('mtTp1x').value = '3';
+  document.getElementById('mtTp1pct').value = '30';
+  document.getElementById('mtTp2x').value = '5';
+  document.getElementById('mtTp2pct').value = '30';
+  document.getElementById('mtTp3x').value = '10';
+  document.getElementById('mtTp3pct').value = '40';
+  document.getElementById('manualTargetModalTitle').textContent = 'Novo Alvo de Venda';
+  openModal('manualTargetModal');
+}
+
+function editManualTarget(t) {
+  document.getElementById('mtEditId').value = t.id;
+  document.getElementById('mtMint').value = t.token_mint;
+  document.getElementById('mtSym').value = t.token_symbol||'';
+  document.getElementById('mtEntryMcap').value = t.entry_mcap||'';
+  document.getElementById('mtAmount').value = t.token_amount||'';
+  document.getElementById('mtTp1x').value = t.tp1_x;
+  document.getElementById('mtTp1pct').value = t.tp1_pct;
+  document.getElementById('mtTp2x').value = t.tp2_x;
+  document.getElementById('mtTp2pct').value = t.tp2_pct;
+  document.getElementById('mtTp3x').value = t.tp3_x;
+  document.getElementById('mtTp3pct').value = t.tp3_pct;
+  document.getElementById('manualTargetModalTitle').textContent = 'Editar Alvo';
+  openModal('manualTargetModal');
+}
+
+function closeManualTargetModal() { closeModal('manualTargetModal'); }
+
+async function saveManualTarget() {
+  const mint      = document.getElementById('mtMint').value.trim();
+  const sym       = document.getElementById('mtSym').value.trim();
+  const entryMcap = parseFloat(document.getElementById('mtEntryMcap').value)||0;
+  const amount    = parseFloat(document.getElementById('mtAmount').value)||0;
+  const editId    = document.getElementById('mtEditId').value;
+
+  if (!mint || mint.length < 32) { showToast('Endereço do token inválido'); return; }
+  if (!entryMcap)  { showToast('Informe o MCap de entrada'); return; }
+  if (!amount)     { showToast('Informe a quantidade do token'); return; }
+
+  const data = {
+    token_mint:    mint,
+    token_symbol:  sym,
+    token_url:     `https://dexscreener.com/solana/${mint}`,
+    entry_mcap:    entryMcap,
+    token_amount:  amount,
+    tp1_x:    parseFloat(document.getElementById('mtTp1x').value)||3,
+    tp1_pct:  parseFloat(document.getElementById('mtTp1pct').value)||30,
+    tp2_x:    parseFloat(document.getElementById('mtTp2x').value)||5,
+    tp2_pct:  parseFloat(document.getElementById('mtTp2pct').value)||30,
+    tp3_x:    parseFloat(document.getElementById('mtTp3x').value)||10,
+    tp3_pct:  parseFloat(document.getElementById('mtTp3pct').value)||40,
+    active:   true,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    if (editId) {
+      await supa(`/rest/v1/manual_trade_targets?id=eq.${editId}`, 'PATCH', data);
+      showToast('✅ Alvo atualizado!');
+    } else {
+      await supa('/rest/v1/manual_trade_targets', 'POST', data);
+      showToast('✅ Alvo configurado!');
+    }
+    closeManualTargetModal();
+    loadManualTargets();
+  } catch(e) { showToast('❌ Erro: '+e.message); }
+}
+
+async function deleteManualTarget(id) {
+  if (!confirm('Excluir este alvo de venda?')) return;
+  try {
+    await supa(`/rest/v1/manual_trade_targets?id=eq.${id}`, 'DELETE');
+    showToast('🗑 Alvo removido');
+    loadManualTargets();
+  } catch(e) { showToast('❌ Erro: '+e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════
