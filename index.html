@@ -780,43 +780,76 @@ html, body {
 
 <!-- MODAL: NOVO ALVO MANUAL -->
 <div class="modal-overlay" id="manualTargetModal">
-  <div class="modal" style="max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-height:92vh;overflow-y:auto;padding-bottom:40px">
     <div class="modal-title" id="manualTargetModalTitle">Novo Alvo de Venda</div>
-    <div class="field">
-      <label>Endereço do token (mint)</label>
-      <input type="text" id="mtMint" placeholder="Endereço do token..." autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <!-- STEP 1: colar contrato -->
+    <div id="mtStep1">
+      <div class="field">
+        <label>Cole o endereço do token (mint)</label>
+        <input type="text" id="mtMint" placeholder="Endereço do token Solana..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="onMintInput(this.value)">
+      </div>
+      <!-- Preview carregado automaticamente -->
+      <div id="mtPreview" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div>
+            <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--green)" id="mtPreviewSym">—</div>
+            <div style="font-size:12px;color:var(--text2)" id="mtPreviewName">—</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:13px;font-weight:700;color:var(--text)" id="mtPreviewMcap">—</div>
+            <div style="font-size:10px;color:var(--text2)">MCap atual</div>
+          </div>
+        </div>
+        <!-- Saldo na carteira do bot -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface3);border-radius:6px;padding:8px 10px">
+          <div style="font-size:12px;color:var(--text2)">Saldo na carteira do bot</div>
+          <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text)" id="mtPreviewBalance">—</div>
+        </div>
+        <div style="margin-top:8px">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">MCap de entrada (usado para calcular X)</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="mtEntryMcap" placeholder="MCap quando você comprou" inputmode="numeric"
+              style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px;font-family:'DM Sans',sans-serif">
+            <button class="btn btn-ghost btn-sm" onclick="useMcapAsCurrent()" style="white-space:nowrap;font-size:11px;padding:8px 10px">Usar atual</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Se não souber, use o MCap atual como referência de entrada.</div>
+        </div>
+      </div>
+      <div id="mtLoadingMsg" style="display:none;text-align:center;padding:12px;color:var(--text2);font-size:13px">
+        <span style="animation:pulse 1s infinite;display:inline-block">🔍 Buscando informações do token...</span>
+      </div>
     </div>
-    <div class="field">
-      <label>Símbolo</label>
-      <input type="text" id="mtSym" placeholder="Ex: PEPE, WIF..." maxlength="20">
-    </div>
-    <div class="field">
-      <label>MCap de entrada ($)</label>
-      <input type="number" id="mtEntryMcap" placeholder="MCap quando você comprou" inputmode="numeric">
-    </div>
-    <div class="field">
-      <label>Quantidade do token que você tem</label>
-      <input type="number" id="mtAmount" placeholder="Ex: 1000000" inputmode="decimal" step="any">
-    </div>
-    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:10px 0 6px;letter-spacing:.05em">NÍVEL 1</div>
-    <div class="grid2">
-      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp1x" value="3" step="0.5" inputmode="decimal"></div>
-      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp1pct" value="30" inputmode="numeric"></div>
-    </div>
-    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 2</div>
-    <div class="grid2">
-      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp2x" value="5" step="0.5" inputmode="decimal"></div>
-      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp2pct" value="30" inputmode="numeric"></div>
-    </div>
-    <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 3</div>
-    <div class="grid2">
-      <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp3x" value="10" step="0.5" inputmode="decimal"></div>
-      <div class="field"><label>Vender (%)</label><input type="number" id="mtTp3pct" value="40" inputmode="numeric"></div>
-    </div>
+
+    <!-- Campos ocultos preenchidos automaticamente -->
+    <input type="hidden" id="mtSym" value="">
+    <input type="hidden" id="mtName" value="">
+    <input type="hidden" id="mtUrl" value="">
+    <input type="hidden" id="mtAmount" value="">
     <input type="hidden" id="mtEditId" value="">
-    <div class="modal-actions">
+
+    <!-- TAKE PROFIT CONFIG — sempre visível -->
+    <div id="mtTpSection" style="display:none">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:12px 0 6px;letter-spacing:.05em">NÍVEL 1</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp1x" value="3" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="mtTp1pct" value="30" inputmode="numeric"></div>
+      </div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 2</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp2x" value="5" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="mtTp2pct" value="30" inputmode="numeric"></div>
+      </div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin:6px 0;letter-spacing:.05em">NÍVEL 3</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="mtTp3x" value="10" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="mtTp3pct" value="40" inputmode="numeric"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px">
       <button class="btn btn-ghost btn-sm" onclick="closeManualTargetModal()">Cancelar</button>
-      <button class="btn btn-green btn-sm" style="flex:1" onclick="saveManualTarget()">Salvar alvo</button>
+      <button class="btn btn-green btn-sm" style="flex:1" id="mtSaveBtn" onclick="saveManualTarget()" disabled>Salvar alvo</button>
     </div>
   </div>
 </div>
@@ -2215,14 +2248,20 @@ function openManualTargetModal() {
   document.getElementById('mtEditId').value = '';
   document.getElementById('mtMint').value = '';
   document.getElementById('mtSym').value = '';
-  document.getElementById('mtEntryMcap').value = '';
+  document.getElementById('mtName').value = '';
+  document.getElementById('mtUrl').value = '';
   document.getElementById('mtAmount').value = '';
+  document.getElementById('mtEntryMcap').value = '';
   document.getElementById('mtTp1x').value = '3';
   document.getElementById('mtTp1pct').value = '30';
   document.getElementById('mtTp2x').value = '5';
   document.getElementById('mtTp2pct').value = '30';
   document.getElementById('mtTp3x').value = '10';
   document.getElementById('mtTp3pct').value = '40';
+  document.getElementById('mtPreview').style.display = 'none';
+  document.getElementById('mtTpSection').style.display = 'none';
+  document.getElementById('mtLoadingMsg').style.display = 'none';
+  document.getElementById('mtSaveBtn').disabled = true;
   document.getElementById('manualTargetModalTitle').textContent = 'Novo Alvo de Venda';
   openModal('manualTargetModal');
 }
@@ -2231,16 +2270,128 @@ function editManualTarget(t) {
   document.getElementById('mtEditId').value = t.id;
   document.getElementById('mtMint').value = t.token_mint;
   document.getElementById('mtSym').value = t.token_symbol||'';
-  document.getElementById('mtEntryMcap').value = t.entry_mcap||'';
+  document.getElementById('mtName').value = t.token_name||'';
+  document.getElementById('mtUrl').value = t.token_url||'';
   document.getElementById('mtAmount').value = t.token_amount||'';
+  document.getElementById('mtEntryMcap').value = t.entry_mcap||'';
   document.getElementById('mtTp1x').value = t.tp1_x;
   document.getElementById('mtTp1pct').value = t.tp1_pct;
   document.getElementById('mtTp2x').value = t.tp2_x;
   document.getElementById('mtTp2pct').value = t.tp2_pct;
   document.getElementById('mtTp3x').value = t.tp3_x;
   document.getElementById('mtTp3pct').value = t.tp3_pct;
+  // Mostra preview preenchido
+  document.getElementById('mtPreviewSym').textContent = t.token_symbol||'?';
+  document.getElementById('mtPreviewName').textContent = t.token_name||'';
+  document.getElementById('mtPreviewMcap').textContent = fmtNum(0); // sem mcap atual no edit
+  document.getElementById('mtPreviewBalance').textContent = t.token_amount ? t.token_amount.toLocaleString('pt-BR') : '—';
+  document.getElementById('mtPreview').style.display = 'block';
+  document.getElementById('mtTpSection').style.display = 'block';
+  document.getElementById('mtSaveBtn').disabled = false;
   document.getElementById('manualTargetModalTitle').textContent = 'Editar Alvo';
   openModal('manualTargetModal');
+}
+
+// Debounce para não disparar a busca a cada letra
+let _mintDebounce = null;
+function onMintInput(val) {
+  clearTimeout(_mintDebounce);
+  const clean = val.trim();
+  if (clean.length < 32) {
+    document.getElementById('mtPreview').style.display = 'none';
+    document.getElementById('mtTpSection').style.display = 'none';
+    document.getElementById('mtLoadingMsg').style.display = 'none';
+    document.getElementById('mtSaveBtn').disabled = true;
+    return;
+  }
+  document.getElementById('mtLoadingMsg').style.display = 'block';
+  document.getElementById('mtPreview').style.display = 'none';
+  document.getElementById('mtTpSection').style.display = 'none';
+  document.getElementById('mtSaveBtn').disabled = true;
+  _mintDebounce = setTimeout(() => fetchMintInfo(clean), 600);
+}
+
+const BOT_WALLET = 'FwLTiXxdgcwLys6T268MniS75wtHaMbZST6RfvCPBHKV';
+const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=d53e028d-eaa5-4546-a105-5de45c0aed4e';
+
+async function fetchMintInfo(mint) {
+  try {
+    // 1. Busca info do DexScreener
+    const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
+    const dexData = await dexRes.json();
+    const pair = (dexData.pairs||[])[0];
+
+    const sym   = pair?.baseToken?.symbol || mint.slice(0,6)+'...';
+    const name  = pair?.baseToken?.name   || '';
+    const mcap  = pair?.fdv || pair?.marketCap || 0;
+    const url   = pair?.url || `https://dexscreener.com/solana/${mint}`;
+
+    document.getElementById('mtSym').value  = sym;
+    document.getElementById('mtName').value = name;
+    document.getElementById('mtUrl').value  = url;
+    document.getElementById('mtPreviewSym').textContent  = sym;
+    document.getElementById('mtPreviewName').textContent = name;
+    document.getElementById('mtPreviewMcap').textContent = mcap ? fmtNum(mcap) : '—';
+
+    // 2. Busca saldo do token na carteira do bot via RPC Helius
+    let balance = 0;
+    try {
+      const rpcRes = await fetch(HELIUS_RPC, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'getTokenAccountsByOwner',
+          params: [
+            BOT_WALLET,
+            { mint },
+            { encoding: 'jsonParsed' }
+          ]
+        })
+      });
+      const rpcData = await rpcRes.json();
+      const accounts = rpcData.result?.value || [];
+      for (const acc of accounts) {
+        const amt = parseFloat(acc.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0);
+        balance += amt;
+      }
+    } catch(e) { console.warn('[RPC] saldo:', e); }
+
+    document.getElementById('mtAmount').value = balance > 0 ? balance : '';
+    document.getElementById('mtPreviewBalance').textContent = balance > 0
+      ? balance.toLocaleString('pt-BR', {maximumFractionDigits: 4})
+      : '0 — token não encontrado na carteira do bot';
+
+    // Mostra preview e seção de TPs
+    document.getElementById('mtLoadingMsg').style.display = 'none';
+    document.getElementById('mtPreview').style.display = 'block';
+    document.getElementById('mtTpSection').style.display = 'block';
+    document.getElementById('mtSaveBtn').disabled = false;
+
+  } catch(e) {
+    document.getElementById('mtLoadingMsg').style.display = 'none';
+    document.getElementById('mtPreview').style.display = 'none';
+    showToast('❌ Erro ao buscar token: '+e.message);
+  }
+}
+
+function useMcapAsCurrent() {
+  // Lê o mcap atual que está sendo exibido no preview e usa como entrada
+  const symEl = document.getElementById('mtPreviewMcap').textContent;
+  // Re-busca o valor real do campo hidden via DexScreener já carregado
+  // Vamos buscar de novo para garantir
+  const mint = document.getElementById('mtMint').value.trim();
+  if (!mint) return;
+  fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`)
+    .then(r => r.json())
+    .then(d => {
+      const pair = (d.pairs||[])[0];
+      const mcap = pair?.fdv || pair?.marketCap || 0;
+      if (mcap) {
+        document.getElementById('mtEntryMcap').value = Math.round(mcap);
+        showToast('✅ MCap atual usado como entrada: ' + fmtNum(mcap));
+      }
+    }).catch(() => {});
 }
 
 function closeManualTargetModal() { closeModal('manualTargetModal'); }
@@ -2248,18 +2399,21 @@ function closeManualTargetModal() { closeModal('manualTargetModal'); }
 async function saveManualTarget() {
   const mint      = document.getElementById('mtMint').value.trim();
   const sym       = document.getElementById('mtSym').value.trim();
+  const name      = document.getElementById('mtName').value.trim();
+  const url       = document.getElementById('mtUrl').value.trim();
   const entryMcap = parseFloat(document.getElementById('mtEntryMcap').value)||0;
   const amount    = parseFloat(document.getElementById('mtAmount').value)||0;
   const editId    = document.getElementById('mtEditId').value;
 
   if (!mint || mint.length < 32) { showToast('Endereço do token inválido'); return; }
-  if (!entryMcap)  { showToast('Informe o MCap de entrada'); return; }
-  if (!amount)     { showToast('Informe a quantidade do token'); return; }
+  if (!entryMcap) { showToast('Informe o MCap de entrada (ou clique em "Usar atual")'); return; }
+  if (!amount)    { showToast('Quantidade do token não encontrada. Verifique se o bot tem o token na carteira.'); return; }
 
   const data = {
     token_mint:    mint,
-    token_symbol:  sym,
-    token_url:     `https://dexscreener.com/solana/${mint}`,
+    token_symbol:  sym || mint.slice(0,6),
+    token_name:    name,
+    token_url:     url || `https://dexscreener.com/solana/${mint}`,
     entry_mcap:    entryMcap,
     token_amount:  amount,
     tp1_x:    parseFloat(document.getElementById('mtTp1x').value)||3,
@@ -2278,7 +2432,7 @@ async function saveManualTarget() {
       showToast('✅ Alvo atualizado!');
     } else {
       await supa('/rest/v1/manual_trade_targets', 'POST', data);
-      showToast('✅ Alvo configurado!');
+      showToast('✅ Alvo configurado! O bot vai monitorar agora.');
     }
     closeManualTargetModal();
     loadManualTargets();
