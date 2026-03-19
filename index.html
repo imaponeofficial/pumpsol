@@ -417,7 +417,68 @@ html, body {
 }
 .tg-hint code { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--green); }
 
-/* ── TOAST ────────────────────────────────────────────────── */
+/* ── TOGGLE ───────────────────────────────────────────────── */
+.toggle-wrap {
+  width: 46px; height: 26px; background: var(--surface3);
+  border: 1px solid var(--border2); border-radius: 100px;
+  cursor: pointer; position: relative; transition: background .2s;
+  flex-shrink: 0;
+}
+.toggle-wrap.on { background: var(--green); border-color: var(--green); }
+.toggle {
+  width: 20px; height: 20px; background: var(--text2);
+  border-radius: 50%; position: absolute; top: 2px; left: 2px;
+  transition: transform .2s, background .2s;
+}
+.toggle-wrap.on .toggle { transform: translateX(20px); background: #000; }
+
+/* ── TRADE GROUP ITEM ─────────────────────────────────────── */
+.tg-item {
+  display: flex; align-items: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px;
+  gap: 10px;
+}
+.tg-item.active-group { border-color: var(--green); background: var(--green-dim); }
+.tg-info { flex: 1; }
+.tg-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.tg-wallets { font-size: 11px; color: var(--text2); }
+.tg-sol-input {
+  width: 80px; background: var(--surface3); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--text); font-size: 13px;
+  padding: 6px 8px; text-align: center; font-family: 'Space Mono', monospace;
+}
+.tg-sol-input:focus { outline: none; border-color: var(--green); }
+
+/* ── POSITION CARD ────────────────────────────────────────── */
+.position-card {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 11px 12px; margin-bottom: 8px;
+}
+.position-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.position-sym { font-family:'Space Mono',monospace; font-size:15px; font-weight:700; color:var(--green); }
+.position-x { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; }
+.tp-pills { display:flex; gap:5px; margin-top:6px; }
+.tp-pill {
+  font-size:10px; padding:2px 8px; border-radius:100px;
+  font-family:'Space Mono',monospace; border: 1px solid;
+}
+.tp-pill.done { background:var(--green-dim); color:var(--green); border-color:var(--green-mid); }
+.tp-pill.pending { background:var(--surface3); color:var(--text3); border-color:var(--border); }
+
+/* ── HISTORY ITEM ─────────────────────────────────────────── */
+.history-item {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--border);
+}
+.history-item:last-child { border-bottom:none; }
+.history-type {
+  font-size:10px; font-weight:700; padding:3px 8px; border-radius:100px;
+  font-family:'Space Mono',monospace; flex-shrink:0;
+}
+.type-buy  { background:var(--blue-dim);  color:var(--blue);  border:1px solid #448aff30; }
+.type-sell { background:var(--green-dim); color:var(--green); border:1px solid var(--green-mid); }
+
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px);
   background: var(--surface2); border: 1px solid var(--border2);
@@ -462,6 +523,7 @@ html, body {
 <div class="tabs">
   <button class="tab active" onclick="showTab('alerts',this)">📡 Alertas</button>
   <button class="tab" onclick="showTab('wallets',this)">👛 Carteiras</button>
+  <button class="tab" onclick="showTab('trade',this)">🤖 Trade</button>
   <button class="tab" onclick="showTab('filters',this)">🔧 Filtros</button>
   <button class="tab" onclick="showTab('telegram',this)">✈️ Telegram</button>
 </div>
@@ -547,6 +609,102 @@ html, body {
 <!-- ══════════════════ GRUPO (página dinâmica) ══════════════════ -->
 <div class="page" id="tab-group">
   <div id="group-page-content"></div>
+</div>
+
+<!-- ══════════════════ TRADE ══════════════════ -->
+<div class="page" id="tab-trade">
+
+  <!-- Status do bot -->
+  <div class="section">
+    <div class="section-title">Status do Bot</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text)" id="tradeStatusLabel">Copy Trade Inativo</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">Carteira: FwLTi...BHKV</div>
+      </div>
+      <div class="toggle-wrap" onclick="toggleTrade()">
+        <div class="toggle" id="tradeToggle"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px" id="tradeStats">
+      <div class="stat-box"><div class="stat-val neutral" id="statPositions">0</div><div class="stat-lbl">Posições</div></div>
+      <div class="stat-box"><div class="stat-val up" id="statWins">0</div><div class="stat-lbl">TPs Batidos</div></div>
+      <div class="stat-box"><div class="stat-val neutral" id="statSolProfit">0</div><div class="stat-lbl">SOL lucro</div></div>
+    </div>
+  </div>
+
+  <!-- Configurações globais -->
+  <div class="section">
+    <div class="section-title">Configurações Globais</div>
+    <div class="grid2">
+      <div class="field">
+        <label>Slippage (%)</label>
+        <input type="number" id="cfgSlippage" value="1.0" step="0.1" inputmode="decimal">
+      </div>
+      <div class="field">
+        <label>Priority Fee (SOL)</label>
+        <input type="number" id="cfgPriorityFee" value="0.001" step="0.0001" inputmode="decimal">
+      </div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveTradeConfig()">💾 Salvar configurações</button>
+  </div>
+
+  <!-- Take Profit -->
+  <div class="section">
+    <div class="section-title">Take Profit Automático</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-size:14px;color:var(--text2)">Venda automática ativa</span>
+      <div class="toggle-wrap" onclick="toggleTP()">
+        <div class="toggle" id="tpToggle"></div>
+      </div>
+    </div>
+    <div id="tpFields">
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin-bottom:8px;letter-spacing:.05em">NÍVEL 1</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="tp1x" value="3" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="tp1pct" value="30" inputmode="numeric"></div>
+      </div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin-bottom:8px;letter-spacing:.05em">NÍVEL 2</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="tp2x" value="5" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="tp2pct" value="30" inputmode="numeric"></div>
+      </div>
+      <div style="font-size:11px;font-family:'Space Mono',monospace;color:var(--text3);margin-bottom:8px;letter-spacing:.05em">NÍVEL 3</div>
+      <div class="grid2">
+        <div class="field"><label>Alvo (X)</label><input type="number" id="tp3x" value="10" step="0.5" inputmode="decimal"></div>
+        <div class="field"><label>Vender (%)</label><input type="number" id="tp3pct" value="40" inputmode="numeric"></div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveTradeConfig()">💾 Salvar take profit</button>
+    </div>
+  </div>
+
+  <!-- Grupos e valor de compra -->
+  <div class="section">
+    <div class="section-title">Grupos — Valor de Compra</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Ative os grupos que deseja copiar e defina quanto SOL investir por compra.
+    </div>
+    <div id="tradeGroupsList">
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Carregando grupos...</div>
+    </div>
+  </div>
+
+  <!-- Posições abertas -->
+  <div class="section">
+    <div class="section-title">Posições Abertas</div>
+    <div id="tradePositions">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhuma posição aberta.</div>
+    </div>
+  </div>
+
+  <!-- Histórico -->
+  <div class="section">
+    <div class="section-title">Histórico de Operações</div>
+    <div id="tradeHistory">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhuma operação ainda.</div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ══════════════════ FILTROS ══════════════════ -->
@@ -1033,6 +1191,9 @@ function showTab(name, btn){
   if(name === 'wallets') document.getElementById('sb-wallets')?.classList.add('active');
 
   if(btn) btn.classList.add('active');
+
+  // Carrega aba trade ao abrir
+  if(name === 'trade') loadTradeTab();
 }
 
 function toggleSidebar(){
@@ -1544,6 +1705,241 @@ function beep(){
       o.start(t); o.stop(t+0.2);
     });
   }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TRADE — CONFIG & UI
+// ═══════════════════════════════════════════════════════════════
+let tradeActive = false;
+let tpActive    = false;
+let tradeConfig = null;
+
+async function loadTradeConfig() {
+  try {
+    const rows = await supa('/rest/v1/trade_config?id=eq.00000000-0000-0000-0000-000000000001&select=*');
+    if (rows && rows.length) {
+      tradeConfig = rows[0];
+      tradeActive = tradeConfig.active;
+      tpActive    = tradeConfig.take_profit_active;
+
+      document.getElementById('cfgSlippage').value    = tradeConfig.slippage_pct;
+      document.getElementById('cfgPriorityFee').value = tradeConfig.priority_fee;
+      document.getElementById('tp1x').value   = tradeConfig.tp1_x;
+      document.getElementById('tp1pct').value = tradeConfig.tp1_pct;
+      document.getElementById('tp2x').value   = tradeConfig.tp2_x;
+      document.getElementById('tp2pct').value = tradeConfig.tp2_pct;
+      document.getElementById('tp3x').value   = tradeConfig.tp3_x;
+      document.getElementById('tp3pct').value = tradeConfig.tp3_pct;
+
+      updateTradeToggleUI();
+      updateTPToggleUI();
+    }
+  } catch(e) { console.warn('[Trade] loadTradeConfig:', e.message); }
+}
+
+async function saveTradeConfig() {
+  try {
+    const data = {
+      active:              tradeActive,
+      slippage_pct:        parseFloat(document.getElementById('cfgSlippage').value)||1,
+      priority_fee:        parseFloat(document.getElementById('cfgPriorityFee').value)||0.001,
+      take_profit_active:  tpActive,
+      tp1_x:   parseFloat(document.getElementById('tp1x').value)||3,
+      tp1_pct: parseFloat(document.getElementById('tp1pct').value)||30,
+      tp2_x:   parseFloat(document.getElementById('tp2x').value)||5,
+      tp2_pct: parseFloat(document.getElementById('tp2pct').value)||30,
+      tp3_x:   parseFloat(document.getElementById('tp3x').value)||10,
+      tp3_pct: parseFloat(document.getElementById('tp3pct').value)||40,
+      updated_at: new Date().toISOString()
+    };
+    await supa('/rest/v1/trade_config?id=eq.00000000-0000-0000-0000-000000000001', 'PATCH', data);
+    showToast('✅ Configurações salvas!');
+  } catch(e) { showToast('❌ Erro: '+e.message); }
+}
+
+async function toggleTrade() {
+  tradeActive = !tradeActive;
+  updateTradeToggleUI();
+  await saveTradeConfig();
+  showToast(tradeActive ? '🤖 Copy Trade ATIVADO!' : '⏸ Copy Trade desativado');
+}
+
+function updateTradeToggleUI() {
+  const wrap = document.getElementById('tradeToggle').parentElement;
+  wrap.classList.toggle('on', tradeActive);
+  document.getElementById('tradeStatusLabel').textContent = tradeActive ? 'Copy Trade Ativo 🟢' : 'Copy Trade Inativo';
+  document.getElementById('tradeStatusLabel').style.color = tradeActive ? 'var(--green)' : 'var(--text)';
+}
+
+async function toggleTP() {
+  tpActive = !tpActive;
+  updateTPToggleUI();
+  await saveTradeConfig();
+}
+
+function updateTPToggleUI() {
+  const wrap = document.getElementById('tpToggle').parentElement;
+  wrap.classList.toggle('on', tpActive);
+  document.getElementById('tpFields').style.opacity = tpActive ? '1' : '0.4';
+}
+
+// ── GRUPOS NA ABA TRADE ───────────────────────────────────────
+async function loadTradeGroups() {
+  const el = document.getElementById('tradeGroupsList');
+  if (!groups.length) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhum grupo criado ainda.</div>';
+    return;
+  }
+
+  // Carrega config de cada grupo
+  const rows = await supa('/rest/v1/trade_groups?select=*').catch(()=>[]);
+  const cfgMap = {};
+  (rows||[]).forEach(r => cfgMap[r.group_id] = r);
+
+  el.innerHTML = groups.map(g => {
+    const tg = cfgMap[g.id];
+    const isOn = tg?.active || false;
+    const buySol = tg?.buy_sol || 0.1;
+    return `
+      <div class="tg-item ${isOn?'active-group':''}" id="tg-item-${g.id}">
+        <div style="width:10px;height:10px;border-radius:50%;background:${g.color};flex-shrink:0"></div>
+        <div class="tg-info">
+          <div class="tg-name">${g.name}</div>
+          <div class="tg-wallets">${g.wallets.length} carteira${g.wallets.length!==1?'s':''}</div>
+        </div>
+        <input class="tg-sol-input" type="number" id="tg-sol-${g.id}" value="${buySol}" step="0.01" placeholder="SOL">
+        <div class="toggle-wrap ${isOn?'on':''}" id="tg-toggle-wrap-${g.id}" onclick="toggleTradeGroup('${g.id}')">
+          <div class="toggle"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function toggleTradeGroup(groupId) {
+  const wrap = document.getElementById(`tg-toggle-wrap-${groupId}`);
+  const item = document.getElementById(`tg-item-${groupId}`);
+  const isOn = wrap.classList.contains('on');
+  const newState = !isOn;
+  const buySol = parseFloat(document.getElementById(`tg-sol-${groupId}`).value)||0.1;
+
+  wrap.classList.toggle('on', newState);
+  item.classList.toggle('active-group', newState);
+
+  try {
+    // Upsert na trade_groups
+    const existing = await supa(`/rest/v1/trade_groups?group_id=eq.${groupId}&select=group_id`).catch(()=>[]);
+    if (existing && existing.length) {
+      await supa(`/rest/v1/trade_groups?group_id=eq.${groupId}`, 'PATCH', { active: newState, buy_sol: buySol, updated_at: new Date().toISOString() });
+    } else {
+      await supa('/rest/v1/trade_groups', 'POST', { group_id: groupId, active: newState, buy_sol: buySol });
+    }
+    showToast(newState ? '✅ Grupo ativado para trade' : '⏸ Grupo desativado');
+  } catch(e) { showToast('❌ Erro: '+e.message); }
+}
+
+// Salva valor de SOL quando o input mudar
+async function saveGroupSol(groupId) {
+  const buySol = parseFloat(document.getElementById(`tg-sol-${groupId}`).value)||0.1;
+  try {
+    const existing = await supa(`/rest/v1/trade_groups?group_id=eq.${groupId}&select=group_id`).catch(()=>[]);
+    if (existing && existing.length) {
+      await supa(`/rest/v1/trade_groups?group_id=eq.${groupId}`, 'PATCH', { buy_sol: buySol, updated_at: new Date().toISOString() });
+    }
+  } catch(e) {}
+}
+
+// ── POSIÇÕES E HISTÓRICO ──────────────────────────────────────
+async function loadTradePositions() {
+  try {
+    const positions = await supa('/rest/v1/trade_positions?tp3_done=eq.false&select=*&order=opened_at.desc&limit=20');
+    const el = document.getElementById('tradePositions');
+
+    // Atualiza stat
+    document.getElementById('statPositions').textContent = (positions||[]).length;
+
+    if (!positions || !positions.length) {
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhuma posição aberta.</div>';
+      return;
+    }
+
+    el.innerHTML = positions.map(p => {
+      const tp1cls = p.tp1_done ? 'done' : 'pending';
+      const tp2cls = p.tp2_done ? 'done' : 'pending';
+      const tp3cls = p.tp3_done ? 'done' : 'pending';
+      return `
+        <div class="position-card">
+          <div class="position-header">
+            <span class="position-sym">${p.token_symbol||'?'}</span>
+            <span style="font-size:11px;color:var(--text2)">${p.group_name||''}</span>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:6px">
+            <div class="stat-box" style="flex:1;padding:5px">
+              <div class="stat-val neutral" style="font-size:11px">${fmtNum(p.entry_mcap)}</div>
+              <div class="stat-lbl">Entrada</div>
+            </div>
+            <div class="stat-box" style="flex:1;padding:5px">
+              <div class="stat-val neutral" style="font-size:11px">${p.entry_sol} SOL</div>
+              <div class="stat-lbl">Investido</div>
+            </div>
+          </div>
+          <div class="tp-pills">
+            <span class="tp-pill ${tp1cls}">TP1</span>
+            <span class="tp-pill ${tp2cls}">TP2</span>
+            <span class="tp-pill ${tp3cls}">TP3</span>
+          </div>
+          <div style="margin-top:8px">
+            <a class="dex-btn" href="${p.token_url||'#'}" target="_blank" style="font-size:11px;padding:5px 10px">DexScreener →</a>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.warn('[Trade] loadTradePositions:', e); }
+}
+
+async function loadTradeHistory() {
+  try {
+    const history = await supa('/rest/v1/trade_history?select=*&order=executed_at.desc&limit=30');
+    const el = document.getElementById('tradeHistory');
+
+    // Conta TPs batidos e lucro
+    const tps = (history||[]).filter(h => h.type.startsWith('SELL'));
+    const solProfit = tps.reduce((acc, h) => acc + (h.sol_amount||0), 0);
+    document.getElementById('statWins').textContent = tps.length;
+    document.getElementById('statSolProfit').textContent = solProfit.toFixed(3);
+
+    if (!history || !history.length) {
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Nenhuma operação ainda.</div>';
+      return;
+    }
+
+    el.innerHTML = history.map(h => {
+      const isBuy = h.type === 'BUY';
+      const typeLabel = { BUY:'COMPRA', SELL_TP1:'TP1', SELL_TP2:'TP2', SELL_TP3:'TP3' }[h.type] || h.type;
+      return `
+        <div class="history-item">
+          <span class="history-type ${isBuy?'type-buy':'type-sell'}">${typeLabel}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${h.token_symbol||'?'}</div>
+            <div style="font-size:11px;color:var(--text2)">${fmtNum(h.mcap_at_op)} ${h.profit_x?'· '+h.profit_x.toFixed(1)+'x':''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;font-family:'Space Mono',monospace;color:${isBuy?'var(--red)':'var(--green)'}">
+              ${isBuy?'-':'+'}${isBuy?(h.sol_amount||0).toFixed(3):(h.sol_amount||0).toFixed(3)} SOL
+            </div>
+            <div style="font-size:10px;color:var(--text3)">${new Date(h.executed_at).toLocaleTimeString('pt-BR')}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.warn('[Trade] loadTradeHistory:', e); }
+}
+
+async function loadTradeTab() {
+  await loadTradeConfig();
+  await loadTradeGroups();
+  await loadTradePositions();
+  await loadTradeHistory();
 }
 
 // ═══════════════════════════════════════════════════════════════
