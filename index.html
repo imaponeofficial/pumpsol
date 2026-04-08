@@ -1186,8 +1186,14 @@ function renderGroupPage(groupId){
         <label>Idade minima do par (dias)</label>
         <input type="number" id="grp-age-min-${g.id}" value="0" inputmode="numeric" placeholder="0 = sem restricao">
       </div>
-      <div style="font-size:11px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);border-left:3px solid var(--amber);margin-bottom:8px;font-family:var(--mono)">
-        Tokens em bonding curve (pump.fun nao migrado) sao <b style="color:var(--amber)">sempre descartados</b>.
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);border-left:3px solid var(--amber);margin-bottom:8px">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text)">Permitir tokens pre-migracao</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px;font-family:var(--mono)">Inclui tokens ainda em bonding curve (pump.fun)</div>
+        </div>
+        <div class="toggle-wrap" id="grp-premig-wrap-${g.id}" onclick="toggleGroupPreMig('${g.id}')">
+          <div class="toggle"></div>
+        </div>
       </div>
       <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="saveGroupTradeConfig('${g.id}')">Salvar filtros</button>
     </div>
@@ -1741,6 +1747,10 @@ async function loadGroupTradeConfig(groupId) {
       label.style.color = isActive ? 'var(--green)' : 'var(--text)';
     }
 
+    // Toggle pré-migração
+    const preMigWrap = document.getElementById(`grp-premig-wrap-${groupId}`);
+    if (preMigWrap) preMigWrap.classList.toggle('on', tg?.allow_pre_migration || false);
+
     // Toggle TP
     const tpWrap = document.getElementById(`grp-tp-wrap-${groupId}`);
     const tpFields = document.getElementById(`grp-tp-fields-${groupId}`);
@@ -1779,8 +1789,10 @@ async function saveGroupTradeConfig(groupId) {
   try {
     const wrap = document.getElementById(`grp-trade-wrap-${groupId}`);
     const tpWrap = document.getElementById(`grp-tp-wrap-${groupId}`);
+    const preMigWrap = document.getElementById(`grp-premig-wrap-${groupId}`);
     const isActive = wrap ? wrap.classList.contains('on') : false;
     const tpActive = tpWrap ? tpWrap.classList.contains('on') : false;
+    const allowPreMig = preMigWrap ? preMigWrap.classList.contains('on') : false;
 
     const data = {
       group_id:           groupId,
@@ -1792,6 +1804,7 @@ async function saveGroupTradeConfig(groupId) {
       trade_mcap_max:     _getNum(`grp-mcap-max-${groupId}`, 0),
       trade_age_min:      _getNum(`grp-age-min-${groupId}`,  0),
       take_profit_active: tpActive,
+      allow_pre_migration: allowPreMig,
       tp1_x:   _getNum(`grp-tp1x-${groupId}`,   3),
       tp1_pct: _getNum(`grp-tp1pct-${groupId}`, 30),
       tp2_x:   _getNum(`grp-tp2x-${groupId}`,   5),
@@ -1833,6 +1846,15 @@ async function toggleGroupTP(groupId) {
   wrap.classList.toggle('on', newState);
   if (fields) fields.style.opacity = newState ? '1' : '0.4';
   await saveGroupTradeConfig(groupId);
+}
+
+async function toggleGroupPreMig(groupId) {
+  const wrap = document.getElementById(`grp-premig-wrap-${groupId}`);
+  if (!wrap) return;
+  const newState = !wrap.classList.contains('on');
+  wrap.classList.toggle('on', newState);
+  await saveGroupTradeConfig(groupId);
+  showToast(newState ? 'Pre-migracao ATIVADA neste grupo!' : 'Pre-migracao desativada neste grupo');
 }
 
 async function loadGroupPositions(groupId) {
