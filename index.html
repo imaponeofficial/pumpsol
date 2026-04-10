@@ -820,6 +820,45 @@ body::before {
 const SUPA_URL = 'https://uxiowjqicihksyakerys.supabase.co';
 const SUPA_KEY = 'sb_publishable_9vGwq2rg2MLyEo67OE_rvA_Gbj8j_nb';
 
+// ── HELIUS WEBHOOK SYNC ──────────────────────────────────────
+// ID do webhook criado no dashboard da Helius (passo 2 do setup)
+const HELIUS_WEBHOOK_ID = '0ee9435e-aea7-4fd4-9e47-f8314b137853';
+const HELIUS_API_KEY    = 'd53e028d-eaa5-4546-a105-5de45c0aed4e';
+
+async function heliusAddAddress(address) {
+  if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return;
+  try {
+    await fetch(
+      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/addresses?api-key=${HELIUS_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses: [address] })
+      }
+    );
+    console.log('[HELIUS] Endereço adicionado:', address);
+  } catch(e) {
+    console.warn('[HELIUS] Erro ao adicionar endereço:', e);
+  }
+}
+
+async function heliusRemoveAddress(address) {
+  if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return;
+  try {
+    await fetch(
+      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/addresses?api-key=${HELIUS_API_KEY}`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses: [address] })
+      }
+    );
+    console.log('[HELIUS] Endereço removido:', address);
+  } catch(e) {
+    console.warn('[HELIUS] Erro ao remover endereço:', e);
+  }
+}
+
 async function supa(path, method='GET', body=null){
   const h={
     'Content-Type':'application/json',
@@ -1046,6 +1085,8 @@ async function saveWallet(){
   if(!address || address.length < 32){ showToast('Endereco invalido'); return; }
   try{
     await supa('/rest/v1/pump_wallets', 'POST', { group_id: groupId, label, address, active: true });
+    // Sincroniza automaticamente com o webhook da Helius
+    await heliusAddAddress(address);
     showToast('Carteira adicionada!');
     closeWalletModal();
     await loadGroups();
@@ -1056,8 +1097,14 @@ async function saveWallet(){
 }
 
 async function deleteWallet(id, groupId){
+  // Busca o endereço antes de deletar para remover do webhook
+  const wallet = groups
+    .flatMap(g => g.wallets || [])
+    .find(w => w.id === id);
   try{
     await supa(`/rest/v1/pump_wallets?id=eq.${id}`, 'DELETE');
+    // Sincroniza automaticamente com o webhook da Helius
+    if (wallet?.address) await heliusRemoveAddress(wallet.address);
     showToast('Carteira removida');
     await loadGroups();
     renderSidebarGroups();
