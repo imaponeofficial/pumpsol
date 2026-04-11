@@ -825,38 +825,73 @@ const SUPA_KEY = 'sb_publishable_9vGwq2rg2MLyEo67OE_rvA_Gbj8j_nb';
 const HELIUS_WEBHOOK_ID = '0ee9435e-aea7-4fd4-9e47-f8314b137853';
 const HELIUS_API_KEY    = 'd53e028d-eaa5-4546-a105-5de45c0aed4e';
 
-async function heliusAddAddress(address) {
+// Busca o webhook completo (URL, tipo, transactionTypes, endereços)
+async function heliusGetWebhook() {
+  if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return null;
+  try {
+    const r = await fetch(
+      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`
+    );
+    if (!r.ok) { console.warn('[HELIUS] Erro ao buscar webhook:', r.status); return null; }
+    return await r.json();
+  } catch(e) {
+    console.warn('[HELIUS] Erro ao buscar webhook:', e);
+    return null;
+  }
+}
+
+// Busca só a lista de endereços do webhook
+async function heliusGetAddresses() {
+  const wh = await heliusGetWebhook();
+  return wh?.accountAddresses || [];
+}
+
+// Helius usa PUT com a lista COMPLETA e todos os campos obrigatórios
+async function heliusUpdateAddresses(addressList) {
   if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return;
   try {
-    await fetch(
-      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/addresses?api-key=${HELIUS_API_KEY}`,
+    // Primeiro busca o webhook atual para pegar webhookURL, webhookType e transactionTypes
+    const current = await heliusGetWebhook();
+    if (!current) { console.warn('[HELIUS] Não foi possível buscar webhook atual'); return; }
+
+    const r = await fetch(
+      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}?api-key=${HELIUS_API_KEY}`,
       {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses: [address] })
+        body: JSON.stringify({
+          webhookURL:       current.webhookURL,
+          webhookType:      current.webhookType,
+          transactionTypes: current.transactionTypes,
+          accountAddresses: addressList,
+          authHeader:       current.authHeader || undefined,
+          txnStatus:        current.txnStatus  || undefined,
+        })
       }
     );
-    console.log('[HELIUS] Endereço adicionado:', address);
+    const respText = await r.text();
+    if (!r.ok) {
+      console.warn('[HELIUS] Erro no PUT status:', r.status, respText);
+    } else {
+      console.log('[HELIUS] Endereços atualizados. Total:', addressList.length);
+    }
   } catch(e) {
-    console.warn('[HELIUS] Erro ao adicionar endereço:', e);
+    console.warn('[HELIUS] Erro ao atualizar endereços:', e);
   }
+}
+
+async function heliusAddAddress(address) {
+  if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return;
+  const current = await heliusGetAddresses();
+  if (current.includes(address)) return; // já existe
+  await heliusUpdateAddresses([...current, address]);
 }
 
 async function heliusRemoveAddress(address) {
   if (!HELIUS_WEBHOOK_ID || !HELIUS_API_KEY) return;
-  try {
-    await fetch(
-      `https://api.helius.xyz/v0/webhooks/${HELIUS_WEBHOOK_ID}/addresses?api-key=${HELIUS_API_KEY}`,
-      {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses: [address] })
-      }
-    );
-    console.log('[HELIUS] Endereço removido:', address);
-  } catch(e) {
-    console.warn('[HELIUS] Erro ao remover endereço:', e);
-  }
+  const current = await heliusGetAddresses();
+  const updated = current.filter(a => a !== address);
+  await heliusUpdateAddresses(updated);
 }
 
 async function supa(path, method='GET', body=null){
