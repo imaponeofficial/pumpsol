@@ -573,10 +573,9 @@ body::before {
 
 <!-- TABS -->
 <div class="tabs">
-  <button class="tab active" onclick="showTab('wallets',this)">Carteiras</button>
+  <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('portfolio',this)">Portfolio</button>
   <button class="tab" onclick="showTab('sell',this)">Venda</button>
-  <button class="tab" onclick="showTab('filters',this)">Filtros</button>
 </div>
 
 <!-- OVERLAY -->
@@ -589,10 +588,9 @@ body::before {
     <div class="sb-close" onclick="closeSidebar()">✕</div>
   </div>
   <div class="sb-body">
-    <div class="sb-nav-item active" id="sb-wallets" onclick="closeSidebar();showTab('wallets',null)">
-      <div class="sb-nav-icon">W</div>
-      Compras Detectadas
-      <span class="sb-badge" id="sb-wallet-count">0</span>
+    <div class="sb-nav-item active" id="sb-wallets" onclick="closeSidebar();showTab('dashboard',document.querySelectorAll('.tab')[0])">
+      <div class="sb-nav-icon">📊</div>
+      Dashboard / PNL
     </div>
 
     <div class="sb-section-title">Grupos de Carteiras</div>
@@ -600,22 +598,75 @@ body::before {
     <div class="sb-add-group" onclick="openNewGroupModal()">
       <span>+</span> Novo Grupo
     </div>
+  </div>
+</div>
 
-    <div class="sb-section-title">Configuracoes</div>
-    <div class="sb-nav-item" onclick="closeSidebar();showTab('filters',null)">
-      <div class="sb-nav-icon">F</div>
-      Filtros DexScreener
+<!-- ══════════════════ DASHBOARD ══════════════════ -->
+<div class="page active" id="tab-dashboard">
+
+  <!-- PNL CARDS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div class="section" style="margin-bottom:0;text-align:center;padding:14px 10px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">Saldo SOL</div>
+      <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--blue)" id="dash-sol-balance">—</div>
+      <div style="font-size:11px;color:var(--text2);font-family:var(--mono);margin-top:2px" id="dash-sol-usd">≈ $—</div>
+    </div>
+    <div class="section" style="margin-bottom:0;text-align:center;padding:14px 10px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">Portfolio ($)</div>
+      <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green)" id="dash-portfolio-usd">—</div>
+      <div style="font-size:11px;color:var(--text2);font-family:var(--mono);margin-top:2px" id="dash-portfolio-sol">— SOL investido</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+    <div class="section" style="margin-bottom:0;text-align:center;padding:12px 8px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">PNL Total</div>
+      <div style="font-family:var(--mono);font-size:16px;font-weight:700" id="dash-pnl-total">—</div>
+    </div>
+    <div class="section" style="margin-bottom:0;text-align:center;padding:12px 8px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">TPs Batidos</div>
+      <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green)" id="dash-tp-count">—</div>
+    </div>
+    <div class="section" style="margin-bottom:0;text-align:center;padding:12px 8px">
+      <div style="font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">Posições</div>
+      <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--blue)" id="dash-positions">—</div>
+    </div>
+  </div>
+
+  <!-- REFRESH -->
+  <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadDashboard()">↻ Atualizar</button>
+
+  <!-- POSIÇÕES ABERTAS -->
+  <div class="section">
+    <div class="section-title">Posições Abertas</div>
+    <div id="dash-open-positions">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- ÚLTIMAS OPERAÇÕES -->
+  <div class="section">
+    <div class="section-title">Últimas Operações</div>
+    <div id="dash-recent-history">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- ALERTAS RECENTES -->
+  <div class="section">
+    <div class="section-title">Compras Detectadas (últimas 24h)</div>
+    <div id="dash-recent-alerts">
+      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════ CARTEIRAS ══════════════════ -->
-<div class="page active" id="tab-wallets">
+<!-- ══════════════════ CARTEIRAS (mantida, oculta) ══════════════════ -->
+<div class="page" id="tab-wallets">
   <div id="wallet-page-content">
     <div class="empty">
       <div class="empty-icon">◈</div>
-      Nenhuma compra detectada ainda.<br>
-      Crie grupos e adicione carteiras no menu.
+      Nenhuma compra detectada ainda.
     </div>
   </div>
 </div>
@@ -653,11 +704,21 @@ body::before {
 <!-- ══════════════════ VENDA MANUAL ══════════════════ -->
 <div class="page" id="tab-sell">
   <div class="section">
-    <div class="section-title">Venda Automatica Manual</div>
+    <div class="section-title">Tokens Disponíveis para Venda</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-      Configure alvos de venda para tokens que voce tem na carteira. O bot venderá automaticamente ao atingir cada alvo.
+      Tokens que o bot comprou e estão no portfolio. Clique para configurar alvos de venda automática.
     </div>
-    <button class="btn btn-green btn-sm" style="width:100%;margin-bottom:10px" onclick="openManualTargetModal()">+ Adicionar token para venda</button>
+    <div id="sellPortfolioQuick">
+      <div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando tokens do portfolio...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Alvos Configurados</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Configure alvos de venda para tokens que você tem na carteira. O bot venderá automaticamente ao atingir cada alvo.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="openManualTargetModal()">+ Adicionar por contrato</button>
     <div id="manualTargetsList">
       <div class="empty"><div class="empty-icon">◎</div>Nenhum alvo configurado.<br>Adicione um token acima para configurar alvos de venda.</div>
     </div>
@@ -735,8 +796,8 @@ body::before {
   </div>
 </div>
 
-<!-- ══════════════════ FILTROS ══════════════════ -->
-<div class="page" id="tab-filters">
+<!-- ══════════════════ FILTROS (oculto — configs por grupo) ══════════════════ -->
+<div class="page" id="tab-filters" style="display:none!important">
   <div class="section">
     <div class="section-title">Market Cap</div>
     <div class="grid2">
@@ -862,6 +923,7 @@ async function dbInit(){
     document.getElementById('dbBadge').textContent = 'DB OK';
     document.getElementById('dbBadge').className = 'db-badge ok';
     renderSidebarGroups();
+    loadDashboard();
   }catch(e){
     console.error('[DB]',e);
     document.getElementById('dbBadge').textContent = 'DB ERR';
@@ -885,29 +947,24 @@ async function loadFilters(){
     const rows = await supa('/rest/v1/pump_filters?key=eq.default&select=*');
     if(rows && rows.length){
       const f = rows[0];
-      if(f.mcap_min  !== null) document.getElementById('mcapMin').value  = f.mcap_min;
-      if(f.mcap_max  !== null) document.getElementById('mcapMax').value  = f.mcap_max;
-      if(f.ch1h_min  !== null) document.getElementById('ch1hMin').value  = f.ch1h_min;
-      if(f.ch24h_min !== null) document.getElementById('ch24hMin').value = f.ch24h_min;
-      if(f.vol1h_min !== null) document.getElementById('vol1hMin').value = f.vol1h_min;
-      if(f.liq_min   !== null) document.getElementById('liqMin').value   = f.liq_min;
-      if(f.age_min   !== null) document.getElementById('ageMin').value   = f.age_min;
-      if(f.scan_sec  !== null) document.getElementById('scanSec').value  = f.scan_sec;
+      // Aba filtros está oculta; usa valores em memória para o scanner legado
+      const _sv = (id, val) => { const el = document.getElementById(id); if(el && val!==null) el.value = val; };
+      _sv('mcapMin',  f.mcap_min);  _sv('mcapMax', f.mcap_max);
+      _sv('ch1hMin',  f.ch1h_min);  _sv('ch24hMin',f.ch24h_min);
+      _sv('vol1hMin', f.vol1h_min); _sv('liqMin',  f.liq_min);
+      _sv('ageMin',   f.age_min);   _sv('scanSec', f.scan_sec);
     }
   }catch(e){ console.warn('[DB] Filtros:', e.message); }
 }
 
 async function saveFilters(){
   try{
+    const _gv = (id, def) => { const el = document.getElementById(id); return el ? (parseFloat(el.value)||def) : def; };
     const data = {
-      mcap_min:  parseFloat(document.getElementById('mcapMin').value)||0,
-      mcap_max:  parseFloat(document.getElementById('mcapMax').value)||999999999,
-      ch1h_min:  parseFloat(document.getElementById('ch1hMin').value)||0,
-      ch24h_min: parseFloat(document.getElementById('ch24hMin').value)||0,
-      vol1h_min: parseFloat(document.getElementById('vol1hMin').value)||0,
-      liq_min:   parseFloat(document.getElementById('liqMin').value)||0,
-      age_min:   parseFloat(document.getElementById('ageMin').value)||0,
-      scan_sec:  parseInt(document.getElementById('scanSec').value)||45,
+      mcap_min:  _gv('mcapMin',0), mcap_max:  _gv('mcapMax',999999999),
+      ch1h_min:  _gv('ch1hMin',0), ch24h_min: _gv('ch24hMin',0),
+      vol1h_min: _gv('vol1hMin',0), liq_min:  _gv('liqMin',0),
+      age_min:   _gv('ageMin',0),   scan_sec:  _gv('scanSec',45),
       updated_at: new Date().toISOString()
     };
     await supa('/rest/v1/pump_filters?key=eq.default', 'PATCH', data);
@@ -1286,7 +1343,7 @@ async function loadGroupHistory(groupId){
 // ═══════════════════════════════════════════════════════════════
 //  UI HELPERS
 // ═══════════════════════════════════════════════════════════════
-let currentTab = 'wallets';
+let currentTab = 'dashboard';
 function showTab(name, btn){
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1298,8 +1355,9 @@ function showTab(name, btn){
 
   if(btn) btn.classList.add('active');
 
+  if(name === 'dashboard') loadDashboard();
   if(name === 'portfolio') { loadPortfolio(); loadBlacklist(); }
-  if(name === 'sell') loadManualTargets();
+  if(name === 'sell') { loadManualTargets(); loadSellPortfolioQuick(); }
 }
 
 function toggleSidebar(){
@@ -1449,7 +1507,8 @@ function renderWalletBuys(){
 
 function updateWalletCount(){
   const n = walletBuys.length;
-  document.getElementById('sb-wallet-count').textContent = n;
+  const el = document.getElementById('sb-wallet-count');
+  if(el) el.textContent = n;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1551,13 +1610,14 @@ async function fetchSource(source){
 }
 
 async function scan(){
-  const mcapMin  = parseFloat(document.getElementById('mcapMin').value)||0;
-  const mcapMax  = parseFloat(document.getElementById('mcapMax').value)||999999999;
-  const ch1hMin  = parseFloat(document.getElementById('ch1hMin').value)||0;
-  const ch24hMin = parseFloat(document.getElementById('ch24hMin').value)||0;
-  const vol1hMin = parseFloat(document.getElementById('vol1hMin').value)||0;
-  const liqMin   = parseFloat(document.getElementById('liqMin').value)||0;
-  const ageMin   = parseFloat(document.getElementById('ageMin').value)||0;
+  const _gv = (id, def) => { const el = document.getElementById(id); return el ? (parseFloat(el.value)||def) : def; };
+  const mcapMin  = _gv('mcapMin',0);
+  const mcapMax  = _gv('mcapMax',999999999);
+  const ch1hMin  = _gv('ch1hMin',0);
+  const ch24hMin = _gv('ch24hMin',0);
+  const vol1hMin = _gv('vol1hMin',0);
+  const liqMin   = _gv('liqMin',0);
+  const ageMin   = _gv('ageMin',0);
   scanN++;
 
   const source = SCAN_SOURCES[scanN % SCAN_SOURCES.length];
@@ -1633,7 +1693,8 @@ function start(){
   document.getElementById('statusTxt').textContent = 'Ativo';
   scan();
   scanWallets();
-  const s = parseInt(document.getElementById('scanSec').value)||45;
+  const secEl = document.getElementById('scanSec');
+  const s = secEl ? (parseInt(secEl.value)||45) : 45;
   timer = setInterval(scan, s*1000);
   timerWallets = setInterval(scanWallets, 30000);
 }
@@ -2273,6 +2334,247 @@ async function deleteManualTarget(id) {
     showToast('Alvo removido');
     loadManualTargets();
   } catch(e) { showToast('Erro: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DASHBOARD — PNL & OVERVIEW
+// ═══════════════════════════════════════════════════════════════
+let _solPriceCache = 0;
+
+async function getSolPrice() {
+  if (_solPriceCache > 0) return _solPriceCache;
+  try {
+    const r = await fetch('https://api.dexscreener.com/latest/dex/pairs/solana/So11111111111111111111111111111111111111112');
+    const d = await r.json();
+    const p = parseFloat((d.pairs||d.pair)?.[0]?.priceUsd || 0);
+    // fallback: fetch SOL/USDC pair on jupiter
+    if (!p) throw new Error('no price');
+    _solPriceCache = p;
+    setTimeout(() => { _solPriceCache = 0; }, 60000); // reset after 1 min
+    return p;
+  } catch {
+    // Tenta via CoinGecko simples
+    try {
+      const r2 = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+      const d2 = await r2.json();
+      const p2 = d2?.solana?.usd || 0;
+      _solPriceCache = p2;
+      setTimeout(() => { _solPriceCache = 0; }, 60000);
+      return p2;
+    } catch { return 0; }
+  }
+}
+
+async function loadDashboard() {
+  try {
+    const solPrice = await getSolPrice();
+
+    // SOL balance via Helius RPC
+    fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[BOT_WALLET] })
+    }).then(r=>r.json()).then(d=>{
+      const lamports = d.result?.value || 0;
+      const sol = lamports / 1e9;
+      document.getElementById('dash-sol-balance').textContent = sol.toFixed(4) + ' SOL';
+      if(solPrice > 0) document.getElementById('dash-sol-usd').textContent = '≈ $' + (sol*solPrice).toFixed(2);
+    }).catch(()=>{});
+
+    // Portfolio stats
+    const portfolio = await supa('/rest/v1/bot_portfolio?select=*');
+    const positions = portfolio || [];
+
+    let totalInvested = 0, totalCurrentSol = 0;
+    positions.forEach(p => {
+      totalInvested   += (p.entry_sol || 0);
+      // Estima valor atual: entry_sol * current_x
+      const cx = p.current_x || 1;
+      totalCurrentSol += (p.entry_sol || 0) * cx;
+    });
+
+    const pnlSol = totalCurrentSol - totalInvested;
+    const pnlColor = pnlSol >= 0 ? 'var(--green)' : 'var(--red)';
+    const pnlSign = pnlSol >= 0 ? '+' : '';
+    const currentUsd = solPrice > 0 ? '$' + (totalCurrentSol * solPrice).toFixed(2) : fmtNum(totalCurrentSol * 150);
+
+    document.getElementById('dash-portfolio-usd').textContent = currentUsd;
+    document.getElementById('dash-portfolio-sol').textContent = totalInvested.toFixed(3) + ' SOL investido';
+    document.getElementById('dash-pnl-total').style.color = pnlColor;
+    document.getElementById('dash-pnl-total').textContent = pnlSign + pnlSol.toFixed(3) + ' SOL';
+    document.getElementById('dash-positions').textContent = positions.length;
+
+    // TPs count from history — Supabase REST filter: type=like.SELL*
+    let sellCount = 0;
+    try {
+      const histRows = await supa('/rest/v1/trade_history?type=like.SELL*&select=id');
+      sellCount = histRows ? histRows.length : 0;
+    } catch(e) { console.warn('[Dashboard] history count:', e); }
+    document.getElementById('dash-tp-count').textContent = sellCount;
+
+    // Open positions
+    const posEl = document.getElementById('dash-open-positions');
+    if (!positions.length) {
+      posEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhuma posição aberta.</div>';
+    } else {
+      posEl.innerHTML = positions.map(p => {
+        const x = p.current_x || 1;
+        const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
+        const tp1cls = p.tp1_done ? 'done' : 'pending';
+        const tp2cls = p.tp2_done ? 'done' : 'pending';
+        const tp3cls = p.tp3_done ? 'done' : 'pending';
+        return `
+          <div class="position-card" style="margin-bottom:8px">
+            <div class="position-header">
+              <span class="position-sym">${p.token_symbol||'?'}</span>
+              <span class="position-x" style="color:${xColor}">${x.toFixed(2)}x</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:6px">
+              <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.entry_mcap)}</div><div class="stat-lbl">Entrada</div></div>
+              <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.current_mcap)}</div><div class="stat-lbl">Atual</div></div>
+              <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${(p.entry_sol||0).toFixed(3)} SOL</div><div class="stat-lbl">Invest.</div></div>
+            </div>
+            <div class="tp-pills">
+              <span class="tp-pill ${tp1cls}">TP1${p.tp1_done?' ✓':''}</span>
+              <span class="tp-pill ${tp2cls}">TP2${p.tp2_done?' ✓':''}</span>
+              <span class="tp-pill ${tp3cls}">TP3${p.tp3_done?' ✓':''}</span>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px">
+              <a class="dex-btn" href="${p.token_url||'#'}" target="_blank">DexScreener</a>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="goToSell()">Configurar venda</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // Recent sell history
+    const histEl = document.getElementById('dash-recent-history');
+    let recentSells = [];
+    try {
+      recentSells = await supa('/rest/v1/trade_history?type=like.SELL*&select=*&order=executed_at.desc&limit=8') || [];
+    } catch(e) { console.warn('[Dashboard] recent history:', e); }
+
+    if (!recentSells.length) {
+      histEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhuma venda executada ainda.</div>';
+    } else {
+      histEl.innerHTML = recentSells.map(h => {
+        const isBuy = h.type === 'BUY';
+        const typeClass = isBuy ? 'type-buy' : 'type-sell';
+        return `
+          <div class="history-item">
+            <span class="history-type ${typeClass}">${h.type||'?'}</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${h.token_symbol||'?'}</div>
+              <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(h.mcap_at_op)}${h.profit_x?' · '+h.profit_x.toFixed(1)+'x':''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:12px;font-family:var(--mono);color:${isBuy?'var(--red)':'var(--green)'}">
+                ${isBuy?'-':'+'}${(h.sol_amount||0).toFixed(3)} SOL
+              </div>
+              <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${new Date(h.executed_at).toLocaleTimeString('pt-BR')}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // Recent alerts (last 24h)
+    const alertEl = document.getElementById('dash-recent-alerts');
+    const since = new Date(Date.now() - 24*3600*1000).toISOString();
+    let alerts = [];
+    try {
+      alerts = await supa(`/rest/v1/pump_notifications?notified_at=gte.${since}&select=*&order=notified_at.desc&limit=10`) || [];
+    } catch(e) { console.warn('[Dashboard] alerts:', e); }
+
+    if (!alerts.length) {
+      alertEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum alerta nas últimas 24h.</div>';
+    } else {
+      alertEl.innerHTML = alerts.map(r => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--green);font-family:var(--mono)">${r.token_symbol||r.token_mint.slice(0,8)}</div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${r.wallet_label||''} · ${r.group_name||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(r.mcap)}</div>
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${new Date(r.notified_at).toLocaleTimeString('pt-BR')}</div>
+          </div>
+          ${r.token_url?`<a class="dex-btn" href="${r.token_url}" target="_blank" style="flex-shrink:0;font-size:10px;padding:5px 8px">DEX</a>`:''}
+        </div>`).join('');
+    }
+
+  } catch(e) {
+    console.warn('[Dashboard]', e);
+  }
+}
+
+function goToSell() {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const sellTab = document.querySelector('.tab:nth-child(3)');
+  if (sellTab) sellTab.classList.add('active');
+  showTab('sell', sellTab);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VENDA — CARREGAR TOKENS DO PORTFOLIO COMO ATALHO
+// ═══════════════════════════════════════════════════════════════
+async function loadSellPortfolioQuick() {
+  const el = document.getElementById('sellPortfolioQuick');
+  if (!el) return;
+  try {
+    const rows = await supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc');
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum token no portfolio do bot.</div>';
+      return;
+    }
+    // Check which ones already have a manual target
+    const targets = await supa('/rest/v1/manual_trade_targets?select=token_mint').catch(()=>[]);
+    const targetMints = new Set((targets||[]).map(t=>t.token_mint));
+
+    el.innerHTML = rows.map(p => {
+      const x = p.current_x || 1;
+      const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
+      const alreadySet = targetMints.has(p.token_mint);
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
+          <div style="flex:1">
+            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${p.token_symbol||'?'}</div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(p.entry_mcap)} entrada · <span style="color:${xColor}">${x.toFixed(2)}x</span></div>
+          </div>
+          ${alreadySet
+            ? `<span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>`
+            : `<button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0" onclick="prefillSellModal('${p.token_mint}','${p.token_symbol||''}','${p.token_name||''}','${p.token_url||''}',${p.token_amount||0},${p.entry_mcap||0})">Configurar venda</button>`
+          }
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:12px;color:var(--red);font-size:12px;font-family:var(--mono)">Erro: ${e.message}</div>`;
+  }
+}
+
+function prefillSellModal(mint, sym, name, url, amount, entryMcap) {
+  document.getElementById('mtEditId').value = '';
+  document.getElementById('mtMint').value = mint;
+  document.getElementById('mtSym').value = sym;
+  document.getElementById('mtName').value = name;
+  document.getElementById('mtUrl').value = url || `https://dexscreener.com/solana/${mint}`;
+  document.getElementById('mtAmount').value = amount;
+  document.getElementById('mtEntryMcap').value = entryMcap || '';
+  document.getElementById('mtTp1x').value = '3';
+  document.getElementById('mtTp1pct').value = '30';
+  document.getElementById('mtTp2x').value = '5';
+  document.getElementById('mtTp2pct').value = '30';
+  document.getElementById('mtTp3x').value = '10';
+  document.getElementById('mtTp3pct').value = '40';
+  document.getElementById('mtPreviewSym').textContent = sym || '?';
+  document.getElementById('mtPreviewName').textContent = name || '';
+  document.getElementById('mtPreviewMcap').textContent = fmtNum(entryMcap || 0);
+  document.getElementById('mtPreviewBalance').textContent = amount ? amount.toLocaleString('pt-BR', {maximumFractionDigits:4}) : '—';
+  document.getElementById('mtLoadingMsg').style.display = 'none';
+  document.getElementById('mtPreview').style.display = 'block';
+  document.getElementById('mtTpSection').style.display = 'block';
+  document.getElementById('mtSaveBtn').disabled = false;
+  document.getElementById('manualTargetModalTitle').textContent = 'Configurar Venda — ' + (sym || mint.slice(0,8));
+  openModal('manualTargetModal');
 }
 
 // ═══════════════════════════════════════════════════════════════
