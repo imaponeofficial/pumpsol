@@ -44,6 +44,80 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* ── TELA DE SENHA ─────────────────────────────────────────── */
+#lockScreen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; padding: 24px;
+}
+#lockScreen.hidden { display: none; }
+.lock-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  width: 100%; max-width: 340px;
+  text-align: center;
+}
+.lock-logo {
+  font-family: var(--mono); font-size: 20px; font-weight: 700;
+  color: var(--green); margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.lock-logo-icon {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--blue), var(--green));
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #000; font-weight: 700;
+}
+.lock-subtitle {
+  font-size: 12px; color: var(--text2); font-family: var(--mono);
+  margin-bottom: 28px; letter-spacing: .04em;
+}
+.lock-label {
+  font-size: 10px; color: var(--text2); font-family: var(--mono);
+  text-transform: uppercase; letter-spacing: .1em;
+  display: block; text-align: left; margin-bottom: 6px;
+}
+.lock-input {
+  width: 100%; background: var(--surface2);
+  border: 1px solid var(--border2); border-radius: var(--radius-sm);
+  color: var(--text); font-size: 18px; padding: 12px 14px;
+  font-family: var(--mono); text-align: center; letter-spacing: .15em;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+  margin-bottom: 12px;
+}
+.lock-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+}
+.lock-input.error {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(248,113,113,0.15);
+  animation: shake .35s ease;
+}
+@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  20%,60%{transform:translateX(-6px)}
+  40%,80%{transform:translateX(6px)}
+}
+.lock-btn {
+  width: 100%; padding: 13px;
+  background: linear-gradient(135deg, var(--blue), #0ea5e9);
+  color: #fff; border: none; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  font-family: var(--sans); letter-spacing: .03em;
+  transition: opacity .15s;
+}
+.lock-btn:active { opacity: .85; }
+.lock-error {
+  font-size: 12px; color: var(--red); font-family: var(--mono);
+  margin-top: 10px; min-height: 18px;
+}
+
 /* Grid background */
 body::before {
   content: '';
@@ -304,6 +378,26 @@ body::before {
 }
 .empty-icon { font-size: 26px; margin-bottom: 12px; opacity: .6; }
 
+/* ── ACCORDION ────────────────────────────────────────────── */
+.accordion-header {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none;
+  padding: 4px 0;
+}
+.accordion-header:hover .accordion-arrow { color: var(--blue); }
+.accordion-arrow {
+  font-size: 12px; color: var(--text3);
+  transition: transform .22s ease, color .15s;
+  flex-shrink: 0;
+}
+.accordion-arrow.open { transform: rotate(180deg); color: var(--blue); }
+.accordion-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height .3s ease;
+}
+.accordion-body.open { max-height: 9999px; }
+
 /* ── PUMP CARDS ───────────────────────────────────────────── */
 .pump-card {
   background: var(--surface); border: 1px solid var(--border);
@@ -551,6 +645,28 @@ body::before {
 </head>
 <body>
 
+<!-- ══════════════════ TELA DE SENHA ══════════════════ -->
+<div id="lockScreen">
+  <div class="lock-box">
+    <div class="lock-logo">
+      <div class="lock-logo-icon">P</div>
+      PumpScan
+    </div>
+    <div class="lock-subtitle">Acesso restrito · Digite a senha</div>
+    <label class="lock-label">Senha</label>
+    <input
+      type="password"
+      id="lockInput"
+      class="lock-input"
+      placeholder="••••••••"
+      autocomplete="current-password"
+      onkeydown="if(event.key==='Enter') checkPassword()"
+    >
+    <button class="lock-btn" onclick="checkPassword()">Entrar</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
@@ -636,27 +752,45 @@ body::before {
   <!-- REFRESH -->
   <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadDashboard()">↻ Atualizar</button>
 
-  <!-- POSIÇÕES ABERTAS -->
+  <!-- POSIÇÕES ABERTAS (accordion) -->
   <div class="section">
-    <div class="section-title">Posições Abertas</div>
-    <div id="dash-open-positions">
-      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+    <div class="accordion-header" onclick="toggleAccordion('acc-positions', this)">
+      <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Posições Abertas</div>
+      <span class="accordion-arrow">▼</span>
+    </div>
+    <div class="accordion-body" id="acc-positions">
+      <div style="height:12px"></div>
+      <div id="dash-open-positions">
+        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      </div>
     </div>
   </div>
 
-  <!-- ÚLTIMAS OPERAÇÕES -->
+  <!-- ÚLTIMAS OPERAÇÕES (accordion) -->
   <div class="section">
-    <div class="section-title">Últimas Operações</div>
-    <div id="dash-recent-history">
-      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+    <div class="accordion-header" onclick="toggleAccordion('acc-history', this)">
+      <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Últimas Operações</div>
+      <span class="accordion-arrow">▼</span>
+    </div>
+    <div class="accordion-body" id="acc-history">
+      <div style="height:12px"></div>
+      <div id="dash-recent-history">
+        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      </div>
     </div>
   </div>
 
-  <!-- ALERTAS RECENTES -->
+  <!-- ALERTAS RECENTES (accordion) -->
   <div class="section">
-    <div class="section-title">Compras Detectadas (últimas 24h)</div>
-    <div id="dash-recent-alerts">
-      <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+    <div class="accordion-header" onclick="toggleAccordion('acc-alerts', this)">
+      <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Compras Detectadas (últimas 24h)</div>
+      <span class="accordion-arrow">▼</span>
+    </div>
+    <div class="accordion-body" id="acc-alerts">
+      <div style="height:12px"></div>
+      <div id="dash-recent-alerts">
+        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      </div>
     </div>
   </div>
 </div>
@@ -681,7 +815,7 @@ body::before {
   <div class="section">
     <div class="section-title">Meu Portfolio</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-      Tokens que o bot comprou e ainda estao na carteira.
+      Tokens comprados pelo bot + tokens na carteira (compras manuais).
     </div>
     <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadPortfolio()">Atualizar portfolio</button>
     <div id="portfolioList">
@@ -706,7 +840,7 @@ body::before {
   <div class="section">
     <div class="section-title">Tokens Disponíveis para Venda</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-      Tokens que o bot comprou e estão no portfolio. Clique para configurar alvos de venda automática.
+      Tokens do portfolio do bot e tokens encontrados na carteira (compras manuais).
     </div>
     <div id="sellPortfolioQuick">
       <div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando tokens do portfolio...</div>
@@ -896,6 +1030,73 @@ async function supa(path, method='GET', body=null){
     throw new Error(e.message || 'Supabase err '+r.status);
   }
   return r.status === 204 ? null : r.json();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SENHA DE ACESSO (via Supabase — tabela app_settings)
+// ═══════════════════════════════════════════════════════════════
+const SESSION_KEY = 'ps_auth_ok';
+
+async function checkPassword() {
+  const val    = document.getElementById('lockInput').value.trim();
+  const errEl  = document.getElementById('lockError');
+  const inp    = document.getElementById('lockInput');
+  const btn    = document.querySelector('.lock-btn');
+
+  if (!val) { errEl.textContent = 'Digite a senha.'; return; }
+
+  btn.textContent = 'Verificando...';
+  btn.disabled = true;
+  errEl.textContent = '';
+
+  try {
+    const rows = await fetch(
+      SUPA_URL + `/rest/v1/app_settings?key=eq.app_password&select=value`,
+      { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } }
+    ).then(r => r.json());
+
+    const storedHash = rows?.[0]?.value || '';
+
+    // Compara direto (texto simples) — suficiente para uso pessoal
+    if (val === storedHash) {
+      sessionStorage.setItem(SESSION_KEY, '1');
+      document.getElementById('lockScreen').classList.add('hidden');
+    } else {
+      errEl.textContent = 'Senha incorreta. Tente novamente.';
+      inp.classList.add('error');
+      inp.value = '';
+      setTimeout(() => inp.classList.remove('error'), 400);
+    }
+  } catch(e) {
+    errEl.textContent = 'Erro ao verificar senha. Tente novamente.';
+    console.error('[Auth]', e);
+  } finally {
+    btn.textContent = 'Entrar';
+    btn.disabled = false;
+  }
+}
+
+// Checa se já está autenticado nesta sessão
+(function initLock() {
+  if (sessionStorage.getItem(SESSION_KEY) === '1') {
+    document.getElementById('lockScreen').classList.add('hidden');
+  } else {
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => document.getElementById('lockInput')?.focus(), 100);
+    });
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════
+//  ACCORDION
+// ═══════════════════════════════════════════════════════════════
+function toggleAccordion(bodyId, headerEl) {
+  const body  = document.getElementById(bodyId);
+  const arrow = headerEl ? headerEl.querySelector('.accordion-arrow') : null;
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (arrow) arrow.classList.toggle('open', !isOpen);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1284,23 +1485,41 @@ function renderGroupPage(groupId){
     </div>
 
     <div class="section">
-      <div class="section-title">Posicoes Abertas — ${g.name}</div>
-      <div id="grp-positions-${g.id}">
-        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      <div class="accordion-header" onclick="toggleAccordion('grp-pos-acc-${g.id}', this)">
+        <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Posicoes Abertas — ${g.name}</div>
+        <span class="accordion-arrow">▼</span>
+      </div>
+      <div class="accordion-body" id="grp-pos-acc-${g.id}">
+        <div style="height:10px"></div>
+        <div id="grp-positions-${g.id}">
+          <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+        </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Historico de Operacoes — ${g.name}</div>
-      <div id="grp-trade-history-${g.id}">
-        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      <div class="accordion-header" onclick="toggleAccordion('grp-hist-acc-${g.id}', this)">
+        <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Historico de Operacoes — ${g.name}</div>
+        <span class="accordion-arrow">▼</span>
+      </div>
+      <div class="accordion-body" id="grp-hist-acc-${g.id}">
+        <div style="height:10px"></div>
+        <div id="grp-trade-history-${g.id}">
+          <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+        </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Historico de Alertas</div>
-      <div id="group-history-${g.id}">
-        <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+      <div class="accordion-header" onclick="toggleAccordion('grp-alert-acc-${g.id}', this)">
+        <div class="section-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0">Historico de Alertas</div>
+        <span class="accordion-arrow">▼</span>
+      </div>
+      <div class="accordion-body" id="grp-alert-acc-${g.id}">
+        <div style="height:10px"></div>
+        <div id="group-history-${g.id}">
+          <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
+        </div>
       </div>
     </div>
   `;
@@ -2007,16 +2226,57 @@ async function loadGroupTradeHistory(groupId) {
 // ═══════════════════════════════════════════════════════════════
 //  PORTFOLIO
 // ═══════════════════════════════════════════════════════════════
+
+// Busca todos os token accounts da carteira do bot via RPC
+async function fetchWalletTokenAccounts() {
+  try {
+    const res = await fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'getTokenAccountsByOwner',
+        params: [ BOT_WALLET, { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' }, { encoding: 'jsonParsed' } ]
+      })
+    });
+    const data = await res.json();
+    const accounts = data.result?.value || [];
+    // Retorna só os que têm saldo > 0
+    return accounts
+      .map(a => ({
+        mint:    a.account?.data?.parsed?.info?.mint,
+        balance: parseFloat(a.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0),
+        decimals: a.account?.data?.parsed?.info?.tokenAmount?.decimals || 6,
+      }))
+      .filter(t => t.mint && t.balance > 0);
+  } catch(e) {
+    console.warn('[RPC] fetchWalletTokenAccounts:', e.message);
+    return [];
+  }
+}
+
 async function loadPortfolio() {
   const el = document.getElementById('portfolioList');
   el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>';
   try {
-    const rows = await supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc');
-    if (!rows || !rows.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>Nenhum token no portfolio.</div>';
+    // Busca em paralelo: portfolio do bot + token accounts da carteira
+    const [botRows, walletAccounts] = await Promise.all([
+      supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc').catch(() => []),
+      fetchWalletTokenAccounts(),
+    ]);
+
+    const botMints = new Set((botRows || []).map(p => p.token_mint));
+
+    // Tokens manuais: estão na carteira mas NÃO estão no bot_portfolio
+    const manualAccounts = walletAccounts.filter(a => !botMints.has(a.mint));
+
+    if ((!botRows || !botRows.length) && !manualAccounts.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>Nenhum token encontrado.</div>';
       return;
     }
-    el.innerHTML = rows.map(p => {
+
+    // ── Renderiza tokens do bot ────────────────────────────────
+    const botHtml = (botRows || []).map(p => {
       const x = p.current_x || 0;
       const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
       const tp1cls = p.tp1_done ? 'done' : 'pending';
@@ -2028,6 +2288,7 @@ async function loadPortfolio() {
             <span class="position-sym">${p.token_symbol||'?'}</span>
             <span class="position-x" style="color:${xColor}">${x.toFixed(2)}x</span>
           </div>
+          <div style="font-size:10px;color:var(--blue);font-family:var(--mono);margin-bottom:4px">🤖 Comprado pelo bot</div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-family:var(--mono)">${p.token_name||''}</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
             <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.entry_mcap)}</div><div class="stat-lbl">Entrada</div></div>
@@ -2043,9 +2304,59 @@ async function loadPortfolio() {
             <a class="dex-btn" href="${p.token_url||'#'}" target="_blank">DexScreener</a>
             <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="removePortfolioEntry('${p.token_mint}')">Remover</button>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
+
+    // ── Renderiza tokens manuais (busca nomes em paralelo antes de renderizar) ─
+    let manualHtml = '';
+    if (manualAccounts.length) {
+      // Busca dados do DexScreener para todos os tokens manuais em paralelo
+      const enriched = await Promise.all(manualAccounts.map(async acc => {
+        try {
+          const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${acc.mint}`);
+          const d = await r.json();
+          const pair = (d.pairs || [])[0];
+          return {
+            mint:    acc.mint,
+            balance: acc.balance,
+            sym:     pair?.baseToken?.symbol || acc.mint.slice(0, 6) + '...',
+            name:    pair?.baseToken?.name   || '',
+            mcap:    pair?.fdv || pair?.marketCap || 0,
+            url:     pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
+            ch24h:   parseFloat(pair?.priceChange?.h24) || 0,
+          };
+        } catch {
+          return { mint: acc.mint, balance: acc.balance, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, ch24h:0 };
+        }
+      }));
+
+      manualHtml = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--border)">Tokens na carteira (compra manual)</div>`;
+      for (const t of enriched) {
+        manualHtml += `
+        <div class="position-card" style="margin-bottom:10px">
+          <div class="position-header">
+            <span class="position-sym">${t.sym}</span>
+            <span style="font-size:10px;color:var(--amber);font-family:var(--mono)">👤 Manual</span>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-family:var(--mono)">${t.name}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(t.mcap)}</div><div class="stat-lbl">MCap</div></div>
+            <div class="stat-box"><div class="stat-val ${t.ch24h>=0?'up':'down'}" style="font-size:11px">${fmtPct(t.ch24h)}</div><div class="stat-lbl">24h</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${t.balance.toLocaleString('pt-BR',{maximumFractionDigits:2})}</div><div class="stat-lbl">Qtd</div></div>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <a class="dex-btn" href="${t.url}" target="_blank">DexScreener</a>
+            <button class="btn btn-green btn-sm" style="font-size:11px;padding:5px 10px"
+              onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">
+              Configurar venda
+            </button>
+          </div>
+        </div>`;
+      }
+    }
+
+    el.innerHTML = botHtml + manualHtml;
+
   } catch(e) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">!</div>Erro ao carregar: ${e.message}</div>`;
   }
@@ -2520,24 +2831,38 @@ function goToSell() {
 async function loadSellPortfolioQuick() {
   const el = document.getElementById('sellPortfolioQuick');
   if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando tokens...</div>';
   try {
-    const rows = await supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc');
-    if (!rows || !rows.length) {
-      el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum token no portfolio do bot.</div>';
+    // Busca em paralelo: portfolio do bot + token accounts da carteira + alvos já configurados
+    const [rows, walletAccounts, targets] = await Promise.all([
+      supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc').catch(() => []),
+      fetchWalletTokenAccounts(),
+      supa('/rest/v1/manual_trade_targets?select=token_mint').catch(() => []),
+    ]);
+
+    const targetMints = new Set((targets || []).map(t => t.token_mint));
+    const botMints    = new Set((rows    || []).map(p => p.token_mint));
+
+    // Tokens manuais: na carteira mas não no bot_portfolio
+    const manualAccounts = walletAccounts.filter(a => !botMints.has(a.mint));
+
+    if ((!rows || !rows.length) && !manualAccounts.length) {
+      el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum token encontrado na carteira ou portfolio.</div>';
       return;
     }
-    // Check which ones already have a manual target
-    const targets = await supa('/rest/v1/manual_trade_targets?select=token_mint').catch(()=>[]);
-    const targetMints = new Set((targets||[]).map(t=>t.token_mint));
 
-    el.innerHTML = rows.map(p => {
+    // ── Tokens do bot ─────────────────────────────────────────
+    const botHtml = (rows || []).map(p => {
       const x = p.current_x || 1;
       const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
       const alreadySet = targetMints.has(p.token_mint);
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
           <div style="flex:1">
-            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${p.token_symbol||'?'}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${p.token_symbol||'?'}</span>
+              <span style="font-size:9px;color:var(--blue);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(56,189,248,0.3);border-radius:100px">🤖 bot</span>
+            </div>
             <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(p.entry_mcap)} entrada · <span style="color:${xColor}">${x.toFixed(2)}x</span></div>
           </div>
           ${alreadySet
@@ -2546,6 +2871,59 @@ async function loadSellPortfolioQuick() {
           }
         </div>`;
     }).join('');
+
+
+    // ── Tokens manuais (busca nomes em paralelo antes de renderizar) ──
+    let manualSection = '';
+    if (manualAccounts.length) {
+      const enriched = await Promise.all(manualAccounts.map(async acc => {
+        if (targetMints.has(acc.mint)) {
+          // Já configurado — não precisa do nome para o botão
+          return { ...acc, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, ch24h:0, alreadySet:true };
+        }
+        try {
+          const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${acc.mint}`);
+          const d = await r.json();
+          const pair = (d.pairs || [])[0];
+          return {
+            mint:       acc.mint,
+            balance:    acc.balance,
+            sym:        pair?.baseToken?.symbol || acc.mint.slice(0,6)+'...',
+            name:       pair?.baseToken?.name   || '',
+            mcap:       pair?.fdv || pair?.marketCap || 0,
+            url:        pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
+            ch24h:      parseFloat(pair?.priceChange?.h24) || 0,
+            alreadySet: false,
+          };
+        } catch {
+          return { mint: acc.mint, balance: acc.balance, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, ch24h:0, alreadySet:false };
+        }
+      }));
+
+      manualSection = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin:12px 0 8px;padding-top:10px;border-top:1px solid var(--border)">Tokens na carteira (compra manual)</div>`;
+      for (const t of enriched) {
+        manualSection += `
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${t.sym}</span>
+                <span style="font-size:9px;color:var(--amber);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(251,191,36,0.3);border-radius:100px">👤 manual</span>
+              </div>
+              <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${t.name ? t.name+' · ' : ''}${fmtNum(t.mcap)} mcap${t.ch24h ? ' · <span class="'+(t.ch24h>=0?'up':'down')+'">'+fmtPct(t.ch24h)+'</span>' : ''}</div>
+            </div>
+            ${t.alreadySet
+              ? `<span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>`
+              : `<button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
+                  onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">
+                  Configurar venda
+                </button>`
+            }
+          </div>`;
+      }
+    }
+
+    el.innerHTML = botHtml + manualSection;
+
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;padding:12px;color:var(--red);font-size:12px;font-family:var(--mono)">Erro: ${e.message}</div>`;
   }
