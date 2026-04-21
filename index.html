@@ -828,6 +828,35 @@ body::before {
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
       Tokens que ja foram comprados pelo bot. Nunca serao comprados novamente.
     </div>
+
+    <!-- Botão para expandir o formulário de adição manual -->
+    <button class="btn btn-ghost btn-sm" id="blAddToggle" style="width:100%;margin-bottom:10px;border-color:rgba(251,191,36,0.3);color:var(--amber)" onclick="toggleBlacklistAdd()">
+      + Adicionar token manualmente
+    </button>
+
+    <!-- Formulário de adição (oculto por padrão) -->
+    <div id="blAddForm" style="display:none;background:var(--surface2);border:1px solid rgba(251,191,36,0.2);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px">
+      <div style="font-size:10px;color:var(--text2);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Adicionar à lista negra</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="blMintInput" type="text" placeholder="Endereço do contrato (mint)" style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:9px 11px;font-family:var(--mono);outline:none;transition:border-color .2s" oninput="onBlMintInput()" />
+      </div>
+      <!-- Preview do token após busca -->
+      <div id="blTokenPreview" style="display:none;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 11px;margin-bottom:8px;display:none">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1">
+            <div id="blPreviewSym" style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--amber)"></div>
+            <div id="blPreviewName" style="font-size:11px;color:var(--text2);margin-top:1px"></div>
+          </div>
+          <div id="blPreviewMcap" style="font-size:11px;color:var(--text2);font-family:var(--mono)"></div>
+        </div>
+      </div>
+      <div id="blLookupStatus" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;min-height:16px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:0 0 auto" onclick="toggleBlacklistAdd()">Cancelar</button>
+        <button id="blSaveBtn" class="btn btn-sm" style="flex:1;background:var(--amber-dim);color:var(--amber);border:1px solid rgba(251,191,36,0.3)" onclick="addToBlacklist()" disabled>Salvar na lista negra</button>
+      </div>
+    </div>
+
     <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadBlacklist()">Atualizar lista</button>
     <div id="blacklistContainer">
       <div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>
@@ -2456,6 +2485,109 @@ async function removeBlacklist(mint) {
     showToast('Token removido da lista negra');
     loadBlacklist();
   } catch(e) { showToast('Erro: '+e.message); }
+}
+
+// ── ADICIONAR MANUALMENTE À LISTA NEGRA ──────────────────────
+let _blLookupTimer = null;
+let _blTokenData   = null;
+
+function toggleBlacklistAdd() {
+  const form   = document.getElementById('blAddForm');
+  const isOpen = form.style.display !== 'none';
+  form.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    document.getElementById('blMintInput').value = '';
+    document.getElementById('blTokenPreview').style.display = 'none';
+    document.getElementById('blLookupStatus').textContent = '';
+    document.getElementById('blSaveBtn').disabled = true;
+    _blTokenData = null;
+    setTimeout(() => document.getElementById('blMintInput').focus(), 80);
+  }
+}
+
+function onBlMintInput() {
+  clearTimeout(_blLookupTimer);
+  _blTokenData = null;
+  document.getElementById('blSaveBtn').disabled = true;
+  document.getElementById('blTokenPreview').style.display = 'none';
+
+  const mint = document.getElementById('blMintInput').value.trim();
+  if (mint.length < 32) {
+    document.getElementById('blLookupStatus').textContent = mint.length ? 'Endereço muito curto...' : '';
+    return;
+  }
+
+  document.getElementById('blLookupStatus').textContent = '🔍 Buscando token...';
+  _blLookupTimer = setTimeout(() => fetchBlTokenInfo(mint), 700);
+}
+
+async function fetchBlTokenInfo(mint) {
+  try {
+    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
+    const d = await r.json();
+    const pair = (d.pairs || [])[0];
+
+    if (pair && pair.baseToken?.symbol) {
+      const sym  = pair.baseToken.symbol;
+      const name = pair.baseToken.name || '';
+      const mcap = pair.fdv || pair.marketCap || 0;
+      const url  = pair.url || `https://dexscreener.com/solana/${mint}`;
+
+      _blTokenData = { mint, sym, name, mcap, url };
+
+      document.getElementById('blPreviewSym').textContent  = sym;
+      document.getElementById('blPreviewName').textContent = name;
+      document.getElementById('blPreviewMcap').textContent = mcap ? fmtNum(mcap) + ' mcap' : '';
+      document.getElementById('blTokenPreview').style.display = 'block';
+      document.getElementById('blLookupStatus').textContent = '✓ Token encontrado';
+      document.getElementById('blLookupStatus').style.color = 'var(--green)';
+      document.getElementById('blSaveBtn').disabled = false;
+    } else {
+      // Token não indexado ainda — permite salvar só com o mint
+      _blTokenData = { mint, sym: mint.slice(0,6)+'...', name: '', mcap: 0, url: `https://dexscreener.com/solana/${mint}` };
+      document.getElementById('blTokenPreview').style.display = 'none';
+      document.getElementById('blLookupStatus').textContent = '⚠ Token não encontrado no DexScreener. Será salvo apenas com o endereço.';
+      document.getElementById('blLookupStatus').style.color = 'var(--amber)';
+      document.getElementById('blSaveBtn').disabled = false;
+    }
+  } catch(e) {
+    document.getElementById('blLookupStatus').textContent = 'Erro ao buscar token: ' + e.message;
+    document.getElementById('blLookupStatus').style.color = 'var(--red)';
+  }
+}
+
+async function addToBlacklist() {
+  if (!_blTokenData) return;
+  const btn = document.getElementById('blSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    // Checa duplicata
+    const existing = await supa(`/rest/v1/trade_blacklist?token_mint=eq.${_blTokenData.mint}&select=id`);
+    if (existing && existing.length) {
+      showToast('Token já está na lista negra!');
+      btn.disabled = false;
+      btn.textContent = 'Salvar na lista negra';
+      return;
+    }
+
+    await supa('/rest/v1/trade_blacklist', 'POST', {
+      token_mint:    _blTokenData.mint,
+      token_symbol:  _blTokenData.sym,
+      token_name:    _blTokenData.name || null,
+      token_url:     _blTokenData.url  || null,
+      added_at:      new Date().toISOString(),
+    });
+
+    showToast(`✓ ${_blTokenData.sym} adicionado à lista negra`);
+    toggleBlacklistAdd();
+    loadBlacklist();
+  } catch(e) {
+    showToast('Erro ao salvar: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Salvar na lista negra';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
