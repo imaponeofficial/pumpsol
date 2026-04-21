@@ -2175,8 +2175,12 @@ async function loadGroupPositions(groupId) {
             <span class="tp-pill ${tp2cls}">TP2</span>
             <span class="tp-pill ${tp3cls}">TP3</span>
           </div>
-          <div style="margin-top:8px">
+          <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
             <a class="dex-btn" href="${p.token_url||'#'}" target="_blank">DexScreener</a>
+            <button class="btn btn-danger btn-sm" style="font-size:11px;padding:5px 10px;flex:0 0 auto"
+              onclick="closePosition('${p.id}','${p.token_symbol||'?'}','${groupId}')">
+              ✕ Fechar
+            </button>
           </div>
         </div>
       `;
@@ -2303,6 +2307,10 @@ async function loadPortfolio() {
           <div style="margin-top:8px;display:flex;gap:6px">
             <a class="dex-btn" href="${p.token_url||'#'}" target="_blank">DexScreener</a>
             <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="removePortfolioEntry('${p.token_mint}')">Remover</button>
+            <button class="btn btn-danger btn-sm" style="font-size:11px;padding:5px 10px;flex:0 0 auto"
+              onclick="closePositionByMint('${p.token_mint}','${p.token_symbol||'?'}')">
+              ✕ Fechar
+            </button>
           </div>
         </div>`;
     }).join('');
@@ -2369,6 +2377,47 @@ async function removePortfolioEntry(mint) {
     showToast('Token removido do portfolio');
     loadPortfolio();
   } catch(e) { showToast('Erro: '+e.message); }
+}
+
+async function closePosition(positionId, sym, groupId) {
+  if (!confirm(`Fechar monitoramento de ${sym||'?'}?\n\nIsso NÃO executa venda — apenas para o bot de monitorar este token.`)) return;
+  try {
+    await supa(`/rest/v1/trade_positions?id=eq.${positionId}`, 'PATCH', {
+      tp1_done: true,
+      tp2_done: true,
+      tp3_done: true,
+      closed_manually: true,
+      closed_at: new Date().toISOString(),
+    });
+    showToast(`Monitoramento de ${sym||'?'} encerrado.`);
+    if (groupId) loadGroupPositions(groupId);
+    loadPortfolio();
+  } catch(e) { showToast('Erro: ' + e.message); }
+}
+
+async function closePositionByMint(mint, sym) {
+  if (!confirm(`Fechar monitoramento de ${sym||'?'}?\n\nIsso NÃO executa venda — apenas para o bot de monitorar este token.`)) return;
+  try {
+    const positions = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&tp3_done=eq.false&select=id,group_id&limit=1`).catch(() => []);
+    if (!positions || !positions.length) {
+      // Nenhuma posição aberta — só remove do portfolio
+      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'PATCH', { tp3_done: true });
+      showToast(`Monitoramento de ${sym||'?'} encerrado.`);
+      loadPortfolio();
+      return;
+    }
+    const pos = positions[0];
+    await supa(`/rest/v1/trade_positions?id=eq.${pos.id}`, 'PATCH', {
+      tp1_done: true,
+      tp2_done: true,
+      tp3_done: true,
+      closed_manually: true,
+      closed_at: new Date().toISOString(),
+    });
+    showToast(`Monitoramento de ${sym||'?'} encerrado.`);
+    if (pos.group_id) loadGroupPositions(pos.group_id);
+    loadPortfolio();
+  } catch(e) { showToast('Erro: ' + e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════
