@@ -2170,7 +2170,7 @@ async function loadGroupPositions(groupId) {
   const el = document.getElementById(`grp-positions-${groupId}`);
   if (!el) return;
   try {
-    const positions = await supa(`/rest/v1/trade_positions?group_id=eq.${groupId}&tp3_done=eq.false&select=*&order=opened_at.desc&limit=20`);
+    const positions = await supa(`/rest/v1/trade_positions?group_id=eq.${groupId}&tp3_done=eq.false&closed_manually=eq.false&select=*&order=opened_at.desc&limit=20`);
     const count = (positions || []).length;
     const posEl = document.getElementById(`grp-stat-pos-${groupId}`);
     if (posEl) posEl.textContent = count;
@@ -2411,21 +2411,26 @@ async function removePortfolioEntry(mint) {
 async function closePosition(positionId, sym, groupId) {
   if (!confirm(`Fechar monitoramento de ${sym||'?'}?\n\nIsso NÃO executa venda — apenas para o bot de monitorar este token.`)) return;
   try {
+    // Remove o card do DOM imediatamente
+    const btn = document.querySelector(`button[onclick*="closePosition('${positionId}'"]`);
+    if (btn) { const card = btn.closest('.position-card'); if (card) card.remove(); }
+
+    // Marca como fechado manualmente — NÃO altera tp1/tp2/tp3 para não distorcer histórico
     await supa(`/rest/v1/trade_positions?id=eq.${positionId}`, 'PATCH', {
-      tp1_done: true,
-      tp2_done: true,
-      tp3_done: true,
       closed_manually: true,
       closed_at: new Date().toISOString(),
     });
+
+    // Busca o mint para deletar do bot_portfolio (some do Dashboard)
+    const posRows = await supa(`/rest/v1/trade_positions?id=eq.${positionId}&select=token_mint`).catch(() => []);
+    const mint = posRows?.[0]?.token_mint;
+    if (mint) await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+
     showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-    // Remove o card do DOM imediatamente, sem esperar o reload
-    const btn = document.querySelector(`button[onclick*="closePosition('${positionId}'"]`);
-    if (btn) btn.closest('.position-card')?.remove();
-    // Aguarda o Supabase propagar o PATCH antes de recarregar a lista
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
     if (groupId) await loadGroupPositions(groupId);
     await loadPortfolio();
+    await loadDashboard();
   } catch(e) { showToast('Erro: ' + e.message); }
 }
 
@@ -2437,26 +2442,28 @@ async function closePositionByMint(mint, sym) {
     const card = btn ? btn.closest('.position-card') : null;
     if (card) card.remove();
 
-    const positions = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&tp3_done=eq.false&select=id,group_id&limit=1`).catch(() => []);
+    // Busca a posição aberta (sem filtrar por tp3_done para pegar todas)
+    const positions = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&closed_manually=eq.false&select=id,group_id&limit=1`).catch(() => []);
+
     if (!positions || !positions.length) {
-      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'PATCH', { tp3_done: true });
-      showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-      await new Promise(r => setTimeout(r, 800));
-      await loadPortfolio();
-      return;
+      // Sem posição registrada — só deleta do portfolio
+      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+    } else {
+      const pos = positions[0];
+      // Marca como fechado manualmente — NÃO altera tp1/tp2/tp3
+      await supa(`/rest/v1/trade_positions?id=eq.${pos.id}`, 'PATCH', {
+        closed_manually: true,
+        closed_at: new Date().toISOString(),
+      });
+      // Deleta do bot_portfolio para sumir do Dashboard
+      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+      if (pos.group_id) { await new Promise(r => setTimeout(r, 600)); await loadGroupPositions(pos.group_id); }
     }
-    const pos = positions[0];
-    await supa(`/rest/v1/trade_positions?id=eq.${pos.id}`, 'PATCH', {
-      tp1_done: true,
-      tp2_done: true,
-      tp3_done: true,
-      closed_manually: true,
-      closed_at: new Date().toISOString(),
-    });
+
     showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-    await new Promise(r => setTimeout(r, 800));
-    if (pos.group_id) await loadGroupPositions(pos.group_id);
+    await new Promise(r => setTimeout(r, 600));
     await loadPortfolio();
+    await loadDashboard();
   } catch(e) { showToast('Erro: ' + e.message); }
 }
 
