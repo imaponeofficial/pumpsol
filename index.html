@@ -2933,12 +2933,14 @@ async function loadDashboard() {
         const tp1cls = p.tp1_done ? 'done' : 'pending';
         const tp2cls = p.tp2_done ? 'done' : 'pending';
         const tp3cls = p.tp3_done ? 'done' : 'pending';
+        const hasIncompleteData = (!p.entry_mcap || p.entry_mcap <= 0);
         return `
-          <div class="position-card" style="margin-bottom:8px">
+          <div class="position-card" style="margin-bottom:8px${hasIncompleteData?';border-color:rgba(251,191,36,0.35)':''}">
             <div class="position-header">
               <span class="position-sym">${p.token_symbol||'?'}</span>
               <span class="position-x" style="color:${xColor}">${x.toFixed(2)}x</span>
             </div>
+            ${hasIncompleteData ? `<div style="font-size:10px;color:var(--amber);font-family:var(--mono);margin-bottom:6px;padding:4px 8px;background:var(--amber-dim);border-radius:6px;border:1px solid rgba(251,191,36,0.25)">⏳ Dados incompletos — patch em andamento (~2 min)</div>` : ''}
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:6px">
               <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.entry_mcap)}</div><div class="stat-lbl">Entrada</div></div>
               <div class="stat-box"><div class="stat-val neutral" style="font-size:11px">${fmtNum(p.current_mcap)}</div><div class="stat-lbl">Atual</div></div>
