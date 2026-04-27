@@ -2419,20 +2419,30 @@ async function closePosition(positionId, sym, groupId) {
       closed_at: new Date().toISOString(),
     });
     showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-    if (groupId) loadGroupPositions(groupId);
-    loadPortfolio();
+    // Remove o card do DOM imediatamente, sem esperar o reload
+    const btn = document.querySelector(`button[onclick*="closePosition('${positionId}'"]`);
+    if (btn) btn.closest('.position-card')?.remove();
+    // Aguarda o Supabase propagar o PATCH antes de recarregar a lista
+    await new Promise(r => setTimeout(r, 800));
+    if (groupId) await loadGroupPositions(groupId);
+    await loadPortfolio();
   } catch(e) { showToast('Erro: ' + e.message); }
 }
 
 async function closePositionByMint(mint, sym) {
   if (!confirm(`Fechar monitoramento de ${sym||'?'}?\n\nIsso NÃO executa venda — apenas para o bot de monitorar este token.`)) return;
   try {
+    // Remove o card do DOM imediatamente
+    const btn = document.querySelector(`button[onclick*="closePositionByMint('${mint}'"]`);
+    const card = btn ? btn.closest('.position-card') : null;
+    if (card) card.remove();
+
     const positions = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&tp3_done=eq.false&select=id,group_id&limit=1`).catch(() => []);
     if (!positions || !positions.length) {
-      // Nenhuma posição aberta — só remove do portfolio
       await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'PATCH', { tp3_done: true });
       showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-      loadPortfolio();
+      await new Promise(r => setTimeout(r, 800));
+      await loadPortfolio();
       return;
     }
     const pos = positions[0];
@@ -2444,8 +2454,9 @@ async function closePositionByMint(mint, sym) {
       closed_at: new Date().toISOString(),
     });
     showToast(`Monitoramento de ${sym||'?'} encerrado.`);
-    if (pos.group_id) loadGroupPositions(pos.group_id);
-    loadPortfolio();
+    await new Promise(r => setTimeout(r, 800));
+    if (pos.group_id) await loadGroupPositions(pos.group_id);
+    await loadPortfolio();
   } catch(e) { showToast('Erro: ' + e.message); }
 }
 
