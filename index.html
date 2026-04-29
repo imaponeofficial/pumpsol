@@ -888,6 +888,23 @@ body::before {
   </div>
 </div>
 
+<!-- MODAL: CONFIRMAÇÃO VENDA DE MERCADO -->
+<div class="modal-overlay" id="marketSellModal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-title" style="color:var(--red)">🔴 Vender agora</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">
+      Vender <strong id="msmSymbol" style="color:var(--text)">?</strong> ao preço atual?<br>
+      <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">100% do saldo será vendido imediatamente. Slippage automático aumentado para garantir execução.</span>
+    </div>
+    <div id="msmStatus" style="display:none;text-align:center;padding:10px;font-size:12px;font-family:var(--mono);color:var(--amber)"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="msmCancelBtn" onclick="closeModal('marketSellModal')">Cancelar</button>
+      <button class="btn btn-sm" id="msmConfirmBtn" style="flex:1;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.4)"
+        onclick="executeMarketSell()">Confirmar venda</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: NOVO ALVO MANUAL -->
 <div class="modal-overlay" id="manualTargetModal">
   <div class="modal" style="max-height:92vh;overflow-y:auto;padding-bottom:40px">
@@ -1043,6 +1060,12 @@ body::before {
 // ═══════════════════════════════════════════════════════════════
 const SUPA_URL = 'https://uxiowjqicihksyakerys.supabase.co';
 const SUPA_KEY = 'sb_publishable_9vGwq2rg2MLyEo67OE_rvA_Gbj8j_nb';
+
+// Edge Function de venda — ajuste se a URL da sua função mudar
+const EDGE_SELL_URL = 'https://uxiowjqicihksyakerys.supabase.co/functions/v1/pump-sell-executor';
+const EDGE_SECRET   = 'uxiowjqicihksy';
+window._EDGE_SELL_URL = EDGE_SELL_URL;
+window._EDGE_SECRET   = EDGE_SECRET;
 
 async function supa(path, method='GET', body=null){
   const h={
@@ -3067,8 +3090,16 @@ async function loadSellPortfolioQuick() {
             <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(p.entry_mcap)} entrada · <span style="color:${xColor}">${x.toFixed(2)}x</span></div>
           </div>
           ${alreadySet
-            ? `<span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>`
-            : `<button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0" onclick="prefillSellModal('${p.token_mint}','${p.token_symbol||''}','${p.token_name||''}','${p.token_url||''}',${p.token_amount||0},${p.entry_mcap||0})">Configurar venda</button>`
+            ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
+                <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+                  onclick="confirmMarketSell('${p.token_mint}','${p.token_symbol||''}',null,false)">Vender agora</button>
+              </div>`
+            : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0" onclick="prefillSellModal('${p.token_mint}','${p.token_symbol||''}','${p.token_name||''}','${p.token_url||''}',${p.token_amount||0},${p.entry_mcap||0})">Configurar venda</button>
+                <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+                  onclick="confirmMarketSell('${p.token_mint}','${p.token_symbol||''}',null,false)">Vender agora</button>
+              </div>`
           }
         </div>`;
     }).join('');
@@ -3113,11 +3144,19 @@ async function loadSellPortfolioQuick() {
               <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${t.name ? t.name+' · ' : ''}${fmtNum(t.mcap)} mcap${t.ch24h ? ' · <span class="'+(t.ch24h>=0?'up':'down')+'">'+fmtPct(t.ch24h)+'</span>' : ''}</div>
             </div>
             ${t.alreadySet
-              ? `<span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>`
-              : `<button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
-                  onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">
-                  Configurar venda
-                </button>`
+              ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                  <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
+                  <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+                    onclick="confirmMarketSell('${t.mint}','${t.sym}',null,true)">Vender agora</button>
+                </div>`
+              : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+                  <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
+                    onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">
+                    Configurar venda
+                  </button>
+                  <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+                    onclick="confirmMarketSell('${t.mint}','${t.sym}',null,true)">Vender agora</button>
+                </div>`
             }
           </div>`;
       }
@@ -3127,6 +3166,115 @@ async function loadSellPortfolioQuick() {
 
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;padding:12px;color:var(--red);font-size:12px;font-family:var(--mono)">Erro: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VENDA DE MERCADO (imediata, preço atual)
+// ═══════════════════════════════════════════════════════════════
+let _marketSellData = null;
+
+function confirmMarketSell(mint, sym, positionId, isManual) {
+  _marketSellData = { mint, sym, positionId, isManual };
+  document.getElementById('msmSymbol').textContent = sym || mint.slice(0,8);
+  document.getElementById('msmStatus').style.display = 'none';
+  document.getElementById('msmStatus').textContent = '';
+  document.getElementById('msmConfirmBtn').disabled = false;
+  document.getElementById('msmCancelBtn').disabled = false;
+  openModal('marketSellModal');
+}
+
+async function executeMarketSell() {
+  if (!_marketSellData) return;
+  const { mint, sym, positionId, isManual } = _marketSellData;
+
+  const confirmBtn = document.getElementById('msmConfirmBtn');
+  const cancelBtn  = document.getElementById('msmCancelBtn');
+  const statusEl   = document.getElementById('msmStatus');
+
+  confirmBtn.disabled = true;
+  cancelBtn.disabled  = true;
+  statusEl.style.display = 'block';
+  statusEl.textContent   = '⏳ Buscando posição...';
+
+  try {
+    // Busca a posição no banco para montar o payload
+    let pos = null;
+    let tpConfig = null;
+    let realPositionId = positionId;
+    const edgeSellUrl = window._EDGE_SELL_URL || '';
+    const edgeSecret  = window._EDGE_SECRET  || '';
+
+    if (!isManual) {
+      // Posição do bot
+      const rows = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&tp3_done=eq.false&select=*&limit=1`).catch(() => []);
+      if (rows && rows.length) {
+        pos = rows[0];
+        realPositionId = pos.id;
+        // Busca config do grupo
+        const tgRows = await supa(`/rest/v1/trade_groups?group_id=eq.${pos.group_id}&limit=1`).catch(() => []);
+        const tg = tgRows?.[0] || {};
+        tpConfig = { slippage_pct: tg.slippage_pct ?? 2.0, priority_fee: tg.priority_fee ?? 0.001 };
+      } else {
+        // Sem posição aberta no banco — tenta pelo bot_portfolio
+        const pRows = await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}&select=*&limit=1`).catch(() => []);
+        if (pRows && pRows.length) {
+          pos = { ...pRows[0], id: pRows[0].position_id || pRows[0].id };
+          realPositionId = pos.id;
+          tpConfig = { slippage_pct: 2.0, priority_fee: 0.001 };
+        }
+      }
+    } else {
+      // Posição manual
+      const rows = await supa(`/rest/v1/manual_trade_targets?token_mint=eq.${mint}&select=*&limit=1`).catch(() => []);
+      if (rows && rows.length) {
+        pos = rows[0];
+        realPositionId = pos.id;
+        tpConfig = { slippage_pct: pos.slippage_pct ?? 2.0, priority_fee: pos.priority_fee ?? 0.001 };
+      }
+    }
+
+    if (!pos || !realPositionId) {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '❌ Posição não encontrada no banco.';
+      confirmBtn.disabled = false;
+      cancelBtn.disabled  = false;
+      return;
+    }
+
+    statusEl.textContent = '⏳ Enviando ordem...';
+
+    // Chama a Edge Function pump-sell-executor com x-action: SELL_MARKET
+    const prefixedId = isManual ? 'manual_' + realPositionId : realPositionId;
+    const resp = await fetch(edgeSellUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'authorization': edgeSecret,
+        'x-action': 'SELL_MARKET',
+      },
+      body: JSON.stringify({ position_id: prefixedId }),
+    });
+
+    if (resp.ok) {
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = '✅ Ordem enviada! Venda em execução...';
+      setTimeout(() => {
+        closeModal('marketSellModal');
+        loadSellPortfolioQuick();
+      }, 2500);
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = `❌ Erro: ${err.error || resp.status}`;
+      confirmBtn.disabled = false;
+      cancelBtn.disabled  = false;
+    }
+  } catch (e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = `❌ ${e.message}`;
+    confirmBtn.disabled = false;
+    cancelBtn.disabled  = false;
   }
 }
 
