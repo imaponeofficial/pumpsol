@@ -3202,8 +3202,8 @@ async function executeMarketSell() {
     let pos = null;
     let tpConfig = null;
     let realPositionId = positionId;
-    const edgeSellUrl = window._EDGE_SELL_URL || '';
-    const edgeSecret  = window._EDGE_SECRET  || '';
+    const edgeSellUrl = EDGE_SELL_URL;
+    const edgeSecret  = EDGE_SECRET;
 
     if (!isManual) {
       // Posição do bot
