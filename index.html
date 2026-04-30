@@ -2444,10 +2444,8 @@ async function closePosition(positionId, sym, groupId) {
       closed_at: new Date().toISOString(),
     });
 
-    // Busca o mint para deletar do bot_portfolio (some do Dashboard)
-    const posRows = await supa(`/rest/v1/trade_positions?id=eq.${positionId}&select=token_mint`).catch(() => []);
-    const mint = posRows?.[0]?.token_mint;
-    if (mint) await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+    // NÃO deleta do bot_portfolio — token continua aparecendo na aba Venda
+    // (o Railway para de monitorar automaticamente por filtrar closed_manually=false)
 
     showToast(`Monitoramento de ${sym||'?'} encerrado.`);
     await new Promise(r => setTimeout(r, 600));
@@ -2469,8 +2467,8 @@ async function closePositionByMint(mint, sym) {
     const positions = await supa(`/rest/v1/trade_positions?token_mint=eq.${mint}&closed_manually=eq.false&select=id,group_id&limit=1`).catch(() => []);
 
     if (!positions || !positions.length) {
-      // Sem posição registrada — só deleta do portfolio
-      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+      // Sem posição registrada — NÃO deleta do bot_portfolio (pode ainda ter saldo)
+      showToast(`Monitoramento de ${sym||'?'} encerrado.`);
     } else {
       const pos = positions[0];
       // Marca como fechado manualmente — NÃO altera tp1/tp2/tp3
@@ -2478,8 +2476,8 @@ async function closePositionByMint(mint, sym) {
         closed_manually: true,
         closed_at: new Date().toISOString(),
       });
-      // Deleta do bot_portfolio para sumir do Dashboard
-      await supa(`/rest/v1/bot_portfolio?token_mint=eq.${mint}`, 'DELETE');
+      // NÃO deleta do bot_portfolio — token continua aparecendo na aba Venda
+      // (o Railway para de monitorar automaticamente por filtrar closed_manually=false)
       if (pos.group_id) { await new Promise(r => setTimeout(r, 600)); await loadGroupPositions(pos.group_id); }
     }
 
