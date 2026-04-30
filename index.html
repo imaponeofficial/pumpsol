@@ -692,6 +692,7 @@ body::before {
   <button class="tab active" onclick="showTab('dashboard',this)">Dashboard</button>
   <button class="tab" onclick="showTab('portfolio',this)">Portfolio</button>
   <button class="tab" onclick="showTab('sell',this)">Venda</button>
+  <button class="tab" onclick="showTab('carteira',this)">Carteira</button>
 </div>
 
 <!-- OVERLAY -->
@@ -884,6 +885,31 @@ body::before {
     <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="openManualTargetModal()">+ Adicionar por contrato</button>
     <div id="manualTargetsList">
       <div class="empty"><div class="empty-icon">◎</div>Nenhum alvo configurado.<br>Adicione um token acima para configurar alvos de venda.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ CARTEIRA ══════════════════ -->
+<div class="page" id="tab-carteira">
+  <div class="section">
+    <div class="section-title">Tokens na Carteira</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Todos os tokens com saldo na carteira — comprados pelo bot ou manualmente. Leitura direto do blockchain.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="loadCarteiraTokens()">↻ Atualizar carteira</button>
+    <div id="carteiraTokensList">
+      <div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando tokens da carteira...</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Alvos Configurados</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+      Configure alvos de venda para qualquer token da carteira. O bot venderá automaticamente ao atingir cada alvo.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="openCarteiraTargetModal()">+ Adicionar por contrato</button>
+    <div id="carteiraTargetsList">
+      <div class="empty"><div class="empty-icon">◎</div>Nenhum alvo configurado.<br>Selecione um token acima para configurar alvos de venda.</div>
     </div>
   </div>
 </div>
@@ -1629,6 +1655,7 @@ function showTab(name, btn){
   if(name === 'dashboard') loadDashboard();
   if(name === 'portfolio') { loadPortfolio(); loadBlacklist(); }
   if(name === 'sell') { loadManualTargets(); loadSellPortfolioQuick(); }
+  if(name === 'carteira') { loadCarteiraTokens(); loadCarteiraTargets(); }
 }
 
 function toggleSidebar(){
@@ -2815,47 +2842,7 @@ function useMcapAsCurrent() {
 
 function closeManualTargetModal() { closeModal('manualTargetModal'); }
 
-async function saveManualTarget() {
-  const mint      = document.getElementById('mtMint').value.trim();
-  const sym       = document.getElementById('mtSym').value.trim();
-  const name      = document.getElementById('mtName').value.trim();
-  const url       = document.getElementById('mtUrl').value.trim();
-  const entryMcap = parseFloat(document.getElementById('mtEntryMcap').value)||0;
-  const amount    = parseFloat(document.getElementById('mtAmount').value)||0;
-  const editId    = document.getElementById('mtEditId').value;
-
-  if (!mint || mint.length < 32) { showToast('Endereco do token invalido'); return; }
-  if (!entryMcap) { showToast('Informe o MCap de entrada (ou clique em Usar atual)'); return; }
-  if (!amount)    { showToast('Quantidade do token nao encontrada. Verifique se o bot tem o token na carteira.'); return; }
-
-  const data = {
-    token_mint:    mint,
-    token_symbol:  sym || mint.slice(0,6),
-    token_name:    name,
-    token_url:     url || `https://dexscreener.com/solana/${mint}`,
-    entry_mcap:    entryMcap,
-    token_amount:  amount,
-    tp1_x:    parseFloat(document.getElementById('mtTp1x').value)||3,
-    tp1_pct:  parseFloat(document.getElementById('mtTp1pct').value)||30,
-    tp2_x:    parseFloat(document.getElementById('mtTp2x').value)||5,
-    tp2_pct:  parseFloat(document.getElementById('mtTp2pct').value)||30,
-    tp3_x:    parseFloat(document.getElementById('mtTp3x').value)||10,
-    tp3_pct:  parseFloat(document.getElementById('mtTp3pct').value)||40,
-    active:   true,
-    updated_at: new Date().toISOString()
-  };
-
-  try {
-    if (editId) {
-      await supa(`/rest/v1/manual_trade_targets?id=eq.${editId}`, 'PATCH', data);
-      showToast('Alvo atualizado!');
-    } else {
-      await supa('/rest/v1/manual_trade_targets', 'POST', data);
-      showToast('Alvo configurado! O bot vai monitorar agora.');
-    }
-    closeManualTargetModal();
-    loadManualTargets();
-  } catch(e) { showToast('Erro: '+e.message); }
+async function saveManualTarget_REPLACED() {
 }
 
 async function deleteManualTarget(id) {
@@ -3295,6 +3282,285 @@ function prefillSellModal(mint, sym, name, url, amount, entryMcap) {
   document.getElementById('mtSaveBtn').disabled = false;
   document.getElementById('manualTargetModalTitle').textContent = 'Configurar Venda — ' + (sym || mint.slice(0,8));
   openModal('manualTargetModal');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CARTEIRA — leitura direta do RPC, todos os tokens
+// ═══════════════════════════════════════════════════════════════
+
+async function fetchAllWalletTokens() {
+  // Busca tokens SPL (antigo) + Token-2022 diretamente via RPC
+  const TOKEN_PROGRAM       = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+  const TOKEN_2022_PROGRAM  = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+
+  async function fetchByProgram(programId) {
+    try {
+      const res = await fetch(HELIUS_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'getTokenAccountsByOwner',
+          params: [ BOT_WALLET, { programId }, { encoding: 'jsonParsed' } ]
+        })
+      });
+      const data = await res.json();
+      return (data.result?.value || []).map(a => ({
+        mint:    a.account?.data?.parsed?.info?.mint,
+        balance: parseFloat(a.account?.data?.parsed?.info?.tokenAmount?.uiAmount ?? 0),
+        decimals: a.account?.data?.parsed?.info?.tokenAmount?.decimals ?? 6,
+        rawAmount: a.account?.data?.parsed?.info?.tokenAmount?.amount ?? '0',
+      })).filter(t => t.mint && (t.balance > 0 || parseInt(t.rawAmount) > 0));
+    } catch(e) {
+      console.warn('[RPC] fetchByProgram', programId, e.message);
+      return [];
+    }
+  }
+
+  const [spl, spl2022] = await Promise.all([
+    fetchByProgram(TOKEN_PROGRAM),
+    fetchByProgram(TOKEN_2022_PROGRAM),
+  ]);
+
+  // Deduplica por mint
+  const seen = new Set();
+  return [...spl, ...spl2022].filter(t => {
+    if (seen.has(t.mint)) return false;
+    seen.add(t.mint);
+    return true;
+  });
+}
+
+async function loadCarteiraTokens() {
+  const el = document.getElementById('carteiraTokensList');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Buscando tokens na carteira...</div>';
+
+  try {
+    // Lê TUDO via RPC direto — SPL + Token-2022, independente do banco
+    const [walletAccounts, botRows, targets] = await Promise.all([
+      fetchAllWalletTokens(),
+      supa('/rest/v1/bot_portfolio?select=*').catch(() => []),
+      supa('/rest/v1/manual_trade_targets?select=token_mint').catch(() => []),
+    ]);
+
+    if (!walletAccounts || !walletAccounts.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">◈</div>Nenhum token encontrado na carteira.</div>';
+      return;
+    }
+
+    const targetMints = new Set((targets  || []).map(t => t.token_mint));
+    const botByMint   = new Map((botRows  || []).map(p => [p.token_mint, p]));
+
+    // Enriquece todos com DexScreener / bot_portfolio
+    const enriched = await Promise.all(walletAccounts.map(async acc => {
+      const botData  = botByMint.get(acc.mint) || null;
+      const isBot    = !!botData;
+      const alreadySet = targetMints.has(acc.mint);
+
+      // Sempre busca DexScreener para ter priceUsd atualizado
+      try {
+        const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${acc.mint}`);
+        const d = await r.json();
+        const pair = (d.pairs || [])[0];
+        const priceUsd = parseFloat(pair?.priceUsd) || 0;
+        if (isBot) {
+          return {
+            mint: acc.mint, balance: acc.balance,
+            sym:  botData.token_symbol || pair?.baseToken?.symbol || acc.mint.slice(0,6)+'...',
+            name: botData.token_name   || pair?.baseToken?.name   || '',
+            mcap: botData.current_mcap || botData.entry_mcap || pair?.fdv || 0,
+            url:  botData.token_url    || pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
+            x: botData.current_x || 1, ch24h: parseFloat(pair?.priceChange?.h24) || 0,
+            priceUsd, valorUsd: acc.balance * priceUsd,
+            isBot, alreadySet,
+          };
+        }
+        return {
+          mint: acc.mint, balance: acc.balance,
+          sym:  pair?.baseToken?.symbol || acc.mint.slice(0,6)+'...',
+          name: pair?.baseToken?.name   || '',
+          mcap: pair?.fdv || pair?.marketCap || 0,
+          url:  pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
+          x: 1, ch24h: parseFloat(pair?.priceChange?.h24) || 0,
+          priceUsd, valorUsd: acc.balance * priceUsd,
+          isBot: false, alreadySet,
+        };
+      } catch {
+        return { mint: acc.mint, balance: acc.balance, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, x:1, ch24h:0, priceUsd:0, valorUsd:0, isBot, alreadySet };
+      }
+    }));
+
+    const totalUsd = enriched.reduce((acc, t) => acc + (t.valorUsd || 0), 0);
+    const totalUsdStr = totalUsd > 0 ? ` · <span style="color:var(--green)">$${totalUsd.toFixed(2)}</span>` : '';
+
+    let html = `<div class="count-badge" style="margin-bottom:10px">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      ${enriched.length} token${enriched.length !== 1 ? 's' : ''} na carteira${totalUsdStr}
+    </div>`;
+
+    for (const t of enriched) {
+      const xColor  = t.x >= 2 ? 'var(--green)' : t.x >= 1 ? 'var(--amber)' : 'var(--red)';
+      const badge   = t.isBot
+        ? `<span style="font-size:9px;color:var(--blue);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(56,189,248,0.3);border-radius:100px">🤖 bot</span>`
+        : `<span style="font-size:9px;color:var(--amber);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(251,191,36,0.3);border-radius:100px">👤 manual</span>`;
+      const sub = t.isBot
+        ? `MCap entrada: ${fmtNum(t.mcap)} · <span style="color:${xColor}">${t.x.toFixed(2)}x</span>`
+        : `${t.name ? t.name + ' · ' : ''}${fmtNum(t.mcap)} mcap${t.ch24h ? ' · <span class="' + (t.ch24h >= 0 ? 'up' : 'down') + '">' + fmtPct(t.ch24h) + '</span>' : ''}`;
+      const isManualSell = !t.isBot;
+
+      const actions = t.alreadySet
+        ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
+            <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+              onclick="confirmMarketSell('${t.mint}','${t.sym}',null,${isManualSell})">Vender agora</button>
+          </div>`
+        : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
+              onclick="prefillSellModalCarteira('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">Configurar venda</button>
+            <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+              onclick="confirmMarketSell('${t.mint}','${t.sym}',null,${isManualSell})">Vender agora</button>
+          </div>`;
+
+      html += `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${t.sym}</span>
+              ${badge}
+            </div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${sub}</div>
+            <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px">${t.balance.toLocaleString('pt-BR',{maximumFractionDigits:4})} tokens${t.valorUsd > 0 ? ` · <span style="color:var(--green);font-weight:700">$${t.valorUsd < 0.01 ? t.valorUsd.toFixed(6) : t.valorUsd.toFixed(2)}</span>` : ''}</div>
+          </div>
+          ${actions}
+        </div>`;
+    }
+
+    el.innerHTML = html;
+    // Atualiza lista de alvos ao lado
+    loadCarteiraTargets();
+
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:12px;color:var(--red);font-size:12px;font-family:var(--mono)">Erro: ${e.message}</div>`;
+  }
+}
+
+async function loadCarteiraTargets() {
+  const el = document.getElementById('carteiraTargetsList');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando...</div>';
+  try {
+    const rows = await supa('/rest/v1/manual_trade_targets?select=*&order=created_at.desc');
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">◎</div>Nenhum alvo configurado.<br>Selecione um token acima para configurar alvos de venda.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(t => {
+      const tp1cls = t.tp1_done ? 'done' : 'pending';
+      const tp2cls = t.tp2_done ? 'done' : 'pending';
+      const tp3cls = t.tp3_done ? 'done' : 'pending';
+      const statusColor = t.active ? 'var(--green)' : 'var(--text3)';
+      return `
+        <div class="position-card" style="margin-bottom:10px;${!t.active?'opacity:0.6':''}">
+          <div class="position-header">
+            <span class="position-sym">${t.token_symbol||'?'}</span>
+            <span style="font-size:11px;color:${statusColor};font-family:var(--mono)">${t.active ? 'Ativo' : 'Finalizado'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-family:var(--mono)">Entrada: ${fmtNum(t.entry_mcap)} · Qtd: ${t.token_amount}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px">
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp1_x}x / ${t.tp1_pct}%</div><div class="stat-lbl">TP1</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp2_x}x / ${t.tp2_pct}%</div><div class="stat-lbl">TP2</div></div>
+            <div class="stat-box"><div class="stat-val neutral" style="font-size:10px">${t.tp3_x}x / ${t.tp3_pct}%</div><div class="stat-lbl">TP3</div></div>
+          </div>
+          <div class="tp-pills">
+            <span class="tp-pill ${tp1cls}">TP1 ${t.tp1_done ? '✓' : ''}</span>
+            <span class="tp-pill ${tp2cls}">TP2 ${t.tp2_done ? '✓' : ''}</span>
+            <span class="tp-pill ${tp3cls}">TP3 ${t.tp3_done ? '✓' : ''}</span>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <a class="dex-btn" href="${t.token_url||'https://dexscreener.com/solana/'+t.token_mint}" target="_blank">DexScreener</a>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:5px 10px" onclick="editManualTarget(${JSON.stringify(t).replace(/"/g,'&quot;')})">Editar</button>
+            <button class="btn btn-danger btn-sm" style="font-size:11px;padding:5px 10px" onclick="deleteCarteiraTarget('${t.id}')">Excluir</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">!</div>Erro: ${e.message}</div>`;
+  }
+}
+
+async function deleteCarteiraTarget(id) {
+  if (!confirm('Excluir este alvo de venda?')) return;
+  try {
+    await supa(`/rest/v1/manual_trade_targets?id=eq.${id}`, 'DELETE');
+    showToast('Alvo removido');
+    loadCarteiraTargets();
+  } catch(e) { showToast('Erro: '+e.message); }
+}
+
+function openCarteiraTargetModal() {
+  // Abre o mesmo modal de alvos manuais, mas ao salvar recarrega a aba Carteira
+  _carteiraModalMode = true;
+  openManualTargetModal();
+}
+
+let _carteiraModalMode = false;
+
+// Override do saveManualTarget para detectar modo carteira
+const _origSaveManualTarget = saveManualTarget;
+async function saveManualTarget() {
+  const mint      = document.getElementById('mtMint').value.trim();
+  const sym       = document.getElementById('mtSym').value.trim();
+  const name      = document.getElementById('mtName').value.trim();
+  const url       = document.getElementById('mtUrl').value.trim();
+  const entryMcap = parseFloat(document.getElementById('mtEntryMcap').value)||0;
+  const amount    = parseFloat(document.getElementById('mtAmount').value)||0;
+  const editId    = document.getElementById('mtEditId').value;
+
+  if (!mint || mint.length < 32) { showToast('Endereco do token invalido'); return; }
+  if (!entryMcap) { showToast('Informe o MCap de entrada (ou clique em Usar atual)'); return; }
+  if (!amount)    { showToast('Quantidade do token nao encontrada. Verifique se tem o token na carteira.'); return; }
+
+  const data = {
+    token_mint:    mint,
+    token_symbol:  sym || mint.slice(0,6),
+    token_name:    name,
+    token_url:     url || `https://dexscreener.com/solana/${mint}`,
+    entry_mcap:    entryMcap,
+    token_amount:  amount,
+    tp1_x:    parseFloat(document.getElementById('mtTp1x').value)||3,
+    tp1_pct:  parseFloat(document.getElementById('mtTp1pct').value)||30,
+    tp2_x:    parseFloat(document.getElementById('mtTp2x').value)||5,
+    tp2_pct:  parseFloat(document.getElementById('mtTp2pct').value)||30,
+    tp3_x:    parseFloat(document.getElementById('mtTp3x').value)||10,
+    tp3_pct:  parseFloat(document.getElementById('mtTp3pct').value)||40,
+    active:   true,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    if (editId) {
+      await supa(`/rest/v1/manual_trade_targets?id=eq.${editId}`, 'PATCH', data);
+      showToast('Alvo atualizado!');
+    } else {
+      await supa('/rest/v1/manual_trade_targets', 'POST', data);
+      showToast('Alvo configurado! O bot vai monitorar agora.');
+    }
+    closeManualTargetModal();
+    // Recarrega a aba correta conforme origem
+    if (_carteiraModalMode) {
+      _carteiraModalMode = false;
+      loadCarteiraTargets();
+      loadCarteiraTokens();
+    } else {
+      loadManualTargets();
+    }
+  } catch(e) { showToast('Erro: '+e.message); }
+}
+
+function prefillSellModalCarteira(mint, sym, name, url, amount, entryMcap) {
+  _carteiraModalMode = true;
+  prefillSellModal(mint, sym, name, url, amount, entryMcap);
 }
 
 // ═══════════════════════════════════════════════════════════════
