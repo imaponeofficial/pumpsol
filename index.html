@@ -3055,112 +3055,107 @@ async function loadSellPortfolioQuick() {
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Carregando tokens...</div>';
   try {
-    // Busca em paralelo: portfolio do bot + token accounts da carteira + alvos já configurados
-    const [rows, walletAccounts, targets] = await Promise.all([
-      supa('/rest/v1/bot_portfolio?select=*&order=bought_at.desc').catch(() => []),
+    // FONTE DE VERDADE: RPC on-chain — qualquer token com saldo aparece
+    // bot_portfolio e manual_trade_targets apenas enriquecem com dados extras
+    const [walletAccounts, botRows, targets] = await Promise.all([
       fetchWalletTokenAccounts(),
+      supa('/rest/v1/bot_portfolio?select=*').catch(() => []),
       supa('/rest/v1/manual_trade_targets?select=token_mint').catch(() => []),
     ]);
 
-    const targetMints = new Set((targets || []).map(t => t.token_mint));
-    const botMints    = new Set((rows    || []).map(p => p.token_mint));
-
-    // Tokens manuais: na carteira mas não no bot_portfolio
-    const manualAccounts = walletAccounts.filter(a => !botMints.has(a.mint));
-
-    if ((!rows || !rows.length) && !manualAccounts.length) {
-      el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum token encontrado na carteira ou portfolio.</div>';
+    if (!walletAccounts || !walletAccounts.length) {
+      el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px;font-family:var(--mono)">Nenhum token encontrado na carteira.</div>';
       return;
     }
 
-    // ── Tokens do bot ─────────────────────────────────────────
-    const botHtml = (rows || []).map(p => {
-      const x = p.current_x || 1;
-      const xColor = x >= 2 ? 'var(--green)' : x >= 1 ? 'var(--amber)' : 'var(--red)';
-      const alreadySet = targetMints.has(p.token_mint);
-      return `
+    const targetMints = new Set((targets  || []).map(t => t.token_mint));
+    const botByMint   = new Map((botRows  || []).map(p => [p.token_mint, p]));
+
+    // Enriquece todos os tokens da carteira com dados do bot_portfolio e dexscreener
+    const enriched = await Promise.all(walletAccounts.map(async acc => {
+      const botData = botByMint.get(acc.mint) || null;
+      const isBot   = !!botData;
+      const alreadySet = targetMints.has(acc.mint);
+
+      // Se tem dados no bot_portfolio, usa direto (sem chamada extra)
+      if (isBot) {
+        return {
+          mint:       acc.mint,
+          balance:    acc.balance,
+          sym:        botData.token_symbol || acc.mint.slice(0,6)+'...',
+          name:       botData.token_name   || '',
+          mcap:       botData.entry_mcap   || 0,
+          url:        botData.token_url    || `https://dexscreener.com/solana/${acc.mint}`,
+          x:          botData.current_x    || 1,
+          ch24h:      0,
+          isBot,
+          alreadySet,
+          botData,
+        };
+      }
+
+      // Token manual ou monitoramento fechado — busca nome no dexscreener
+      try {
+        const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${acc.mint}`);
+        const d = await r.json();
+        const pair = (d.pairs || [])[0];
+        return {
+          mint:       acc.mint,
+          balance:    acc.balance,
+          sym:        pair?.baseToken?.symbol || acc.mint.slice(0,6)+'...',
+          name:       pair?.baseToken?.name   || '',
+          mcap:       pair?.fdv || pair?.marketCap || 0,
+          url:        pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
+          x:          1,
+          ch24h:      parseFloat(pair?.priceChange?.h24) || 0,
+          isBot:      false,
+          alreadySet,
+          botData:    null,
+        };
+      } catch {
+        return { mint: acc.mint, balance: acc.balance, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, x:1, ch24h:0, isBot:false, alreadySet, botData:null };
+      }
+    }));
+
+    let html = '';
+    for (const t of enriched) {
+      const xColor = t.x >= 2 ? 'var(--green)' : t.x >= 1 ? 'var(--amber)' : 'var(--red)';
+      const badge  = t.isBot
+        ? `<span style="font-size:9px;color:var(--blue);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(56,189,248,0.3);border-radius:100px">🤖 bot</span>`
+        : `<span style="font-size:9px;color:var(--amber);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(251,191,36,0.3);border-radius:100px">👤 manual</span>`;
+      const sub = t.isBot
+        ? `${fmtNum(t.mcap)} entrada · <span style="color:${xColor}">${t.x.toFixed(2)}x</span>`
+        : `${t.name ? t.name+' · ' : ''}${fmtNum(t.mcap)} mcap${t.ch24h ? ' · <span class="'+(t.ch24h>=0?'up':'down')+'">'+fmtPct(t.ch24h)+'</span>' : ''}`;
+      // isManual para confirmMarketSell: true se não tem bot_portfolio
+      const isManualSell = !t.isBot;
+
+      const actions = t.alreadySet
+        ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
+            <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+              onclick="confirmMarketSell('${t.mint}','${t.sym}',null,${isManualSell})">Vender agora</button>
+          </div>`
+        : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+            <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
+              onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">Configurar venda</button>
+            <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
+              onclick="confirmMarketSell('${t.mint}','${t.sym}',null,${isManualSell})">Vender agora</button>
+          </div>`;
+
+      html += `
         <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${p.token_symbol||'?'}</span>
-              <span style="font-size:9px;color:var(--blue);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(56,189,248,0.3);border-radius:100px">🤖 bot</span>
+              <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${t.sym}</span>
+              ${badge}
             </div>
-            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${fmtNum(p.entry_mcap)} entrada · <span style="color:${xColor}">${x.toFixed(2)}x</span></div>
+            <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${sub}</div>
           </div>
-          ${alreadySet
-            ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-                <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
-                <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
-                  onclick="confirmMarketSell('${p.token_mint}','${p.token_symbol||''}',null,false)">Vender agora</button>
-              </div>`
-            : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-                <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0" onclick="prefillSellModal('${p.token_mint}','${p.token_symbol||''}','${p.token_name||''}','${p.token_url||''}',${p.token_amount||0},${p.entry_mcap||0})">Configurar venda</button>
-                <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
-                  onclick="confirmMarketSell('${p.token_mint}','${p.token_symbol||''}',null,false)">Vender agora</button>
-              </div>`
-          }
+          ${actions}
         </div>`;
-    }).join('');
-
-
-    // ── Tokens manuais (busca nomes em paralelo antes de renderizar) ──
-    let manualSection = '';
-    if (manualAccounts.length) {
-      const enriched = await Promise.all(manualAccounts.map(async acc => {
-        if (targetMints.has(acc.mint)) {
-          // Já configurado — não precisa do nome para o botão
-          return { ...acc, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, ch24h:0, alreadySet:true };
-        }
-        try {
-          const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${acc.mint}`);
-          const d = await r.json();
-          const pair = (d.pairs || [])[0];
-          return {
-            mint:       acc.mint,
-            balance:    acc.balance,
-            sym:        pair?.baseToken?.symbol || acc.mint.slice(0,6)+'...',
-            name:       pair?.baseToken?.name   || '',
-            mcap:       pair?.fdv || pair?.marketCap || 0,
-            url:        pair?.url || `https://dexscreener.com/solana/${acc.mint}`,
-            ch24h:      parseFloat(pair?.priceChange?.h24) || 0,
-            alreadySet: false,
-          };
-        } catch {
-          return { mint: acc.mint, balance: acc.balance, sym: acc.mint.slice(0,6)+'...', name:'', mcap:0, url:`https://dexscreener.com/solana/${acc.mint}`, ch24h:0, alreadySet:false };
-        }
-      }));
-
-      manualSection = `<div style="font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin:12px 0 8px;padding-top:10px;border-top:1px solid var(--border)">Tokens na carteira (compra manual)</div>`;
-      for (const t of enriched) {
-        manualSection += `
-          <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px">
-            <div style="flex:1">
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${t.sym}</span>
-                <span style="font-size:9px;color:var(--amber);font-family:var(--mono);padding:2px 6px;border:1px solid rgba(251,191,36,0.3);border-radius:100px">👤 manual</span>
-              </div>
-              <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${t.name ? t.name+' · ' : ''}${fmtNum(t.mcap)} mcap${t.ch24h ? ' · <span class="'+(t.ch24h>=0?'up':'down')+'">'+fmtPct(t.ch24h)+'</span>' : ''}</div>
-            </div>
-            ${t.alreadySet
-              ? `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-                  <span style="font-size:10px;color:var(--green);font-family:var(--mono);padding:4px 10px;border:1px solid var(--green-mid);border-radius:100px;background:var(--green-dim)">✓ Configurado</span>
-                  <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
-                    onclick="confirmMarketSell('${t.mint}','${t.sym}',null,true)">Vender agora</button>
-                </div>`
-              : `<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
-                  <button class="btn btn-green btn-sm" style="padding:7px 12px;font-size:11px;flex-shrink:0"
-                    onclick="prefillSellModal('${t.mint}','${t.sym}','${t.name}','${t.url}',${t.balance},${t.mcap})">
-                    Configurar venda
-                  </button>
-                  <button class="btn btn-sm" style="padding:5px 10px;font-size:10px;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);flex-shrink:0"
-                    onclick="confirmMarketSell('${t.mint}','${t.sym}',null,true)">Vender agora</button>
-                </div>`
-            }
-          </div>`;
-      }
     }
 
-    el.innerHTML = botHtml + manualSection;
+    el.innerHTML = html;
 
   } catch(e) {
     el.innerHTML = `<div style="text-align:center;padding:12px;color:var(--red);font-size:12px;font-family:var(--mono)">Erro: ${e.message}</div>`;
